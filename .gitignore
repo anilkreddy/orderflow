@@ -1,0 +1,14 @@
+.gradle
+build
+out
+target
+.idea
+*.iml
+
+node_modules
+dist
+.env
+
+.DS_Store
+
+*.log

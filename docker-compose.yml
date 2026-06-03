@@ -1,0 +1,26 @@
+services:
+  product-db:
+    image: postgres:16
+    container_name: orderflow-product-db
+    environment:
+      POSTGRES_DB: product_db
+      POSTGRES_USER: product_user
+      POSTGRES_PASSWORD: product_pass
+    ports:
+      - "5433:5432"
+
+  order-db:
+    image: postgres:16
+    container_name: orderflow-order-db
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_USER: order_user
+      POSTGRES_PASSWORD: order_pass
+    ports:
+      - "5434:5432"
+
+  kafka:
+    image: apache/kafka:4.1.0
+    container_name: orderflow-kafka
+    ports:
+      - "9092:9092"

@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+GRADLE_VERSION=9.5.0
+DIST_NAME="gradle-${GRADLE_VERSION}-bin"
+DIST_URL="https://services.gradle.org/distributions/${DIST_NAME}.zip"
+CACHE_DIR="${HOME}/.gradle/wrapper/dists/${DIST_NAME}"
+INSTALL_DIR="${CACHE_DIR}/gradle-${GRADLE_VERSION}"
+ZIP_PATH="${CACHE_DIR}/${DIST_NAME}.zip"
+
+if [ ! -x "${INSTALL_DIR}/bin/gradle" ]; then
+  mkdir -p "${CACHE_DIR}"
+  if [ ! -f "${ZIP_PATH}" ]; then
+    echo "Downloading Gradle ${GRADLE_VERSION}..."
+    curl -fsSL "${DIST_URL}" -o "${ZIP_PATH}"
+  fi
+  rm -rf "${INSTALL_DIR}"
+  unzip -q -o "${ZIP_PATH}" -d "${CACHE_DIR}"
+fi
+
+exec "${INSTALL_DIR}/bin/gradle" -p "${SCRIPT_DIR}" "$@"

@@ -1,0 +1,45 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: order-service
+  datasource:
+    url: ${ORDER_DB_URL:jdbc:postgresql://localhost:5434/order_db}
+    username: ${ORDER_DB_USERNAME:order_user}
+    password: ${ORDER_DB_PASSWORD:order_pass}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+application:
+  kafka:
+    order-created-topic: order.created
+  clients:
+    product-service:
+      base-url: ${PRODUCT_SERVICE_BASE_URL:http://localhost:8081}
+
+logging:
+  level:
+    com.orderflow.order: INFO
+    org.springframework.web: INFO
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

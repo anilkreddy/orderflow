@@ -1,0 +1,33 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: notification-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: notification-service
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.orderflow.notification.messaging
+        spring.json.value.default.type: com.orderflow.notification.messaging.OrderCreatedEvent
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+application:
+  kafka:
+    order-created-topic: order.created
+
+logging:
+  level:
+    com.orderflow.notification: INFO
+    org.springframework.web: INFO
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

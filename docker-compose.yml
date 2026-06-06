@@ -1,26 +1,189 @@
+name: orderflow
+
 services:
   product-db:
-    image: postgres:16
+    image: postgres:16-alpine
     container_name: orderflow-product-db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: product_db
       POSTGRES_USER: product_user
       POSTGRES_PASSWORD: product_pass
     ports:
       - "5433:5432"
+    volumes:
+      - product-db-data:/var/lib/postgresql/data
+    networks:
+      - orderflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U product_user -d product_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   order-db:
-    image: postgres:16
+    image: postgres:16-alpine
     container_name: orderflow-order-db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: order_db
       POSTGRES_USER: order_user
       POSTGRES_PASSWORD: order_pass
     ports:
       - "5434:5432"
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+    networks:
+      - orderflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U order_user -d order_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kafka:
     image: apache/kafka:4.1.0
     container_name: orderflow-kafka
+    hostname: kafka
+    restart: unless-stopped
     ports:
       - "9092:9092"
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://kafka:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - orderflow-network
+
+  product-service:
+    build:
+      context: ./backend
+      dockerfile: product-service/Dockerfile
+    container_name: orderflow-product-service
+    restart: unless-stopped
+    depends_on:
+      product-db:
+        condition: service_healthy
+    environment:
+      PRODUCT_DB_URL: jdbc:postgresql://product-db:5432/product_db
+      PRODUCT_DB_USERNAME: product_user
+      PRODUCT_DB_PASSWORD: product_pass
+      ORDERFLOW_CATALOG_SEED_ENABLED: ${ORDERFLOW_CATALOG_SEED_ENABLED:-true}
+    ports:
+      - "8081:8081"
+    networks:
+      - orderflow-network
+
+  order-service:
+    build:
+      context: ./backend
+      dockerfile: order-service/Dockerfile
+    container_name: orderflow-order-service
+    restart: unless-stopped
+    depends_on:
+      order-db:
+        condition: service_healthy
+      product-service:
+        condition: service_started
+      kafka:
+        condition: service_started
+    environment:
+      ORDER_DB_URL: jdbc:postgresql://order-db:5432/order_db
+      ORDER_DB_USERNAME: order_user
+      ORDER_DB_PASSWORD: order_pass
+      PRODUCT_SERVICE_BASE_URL: http://product-service:8081
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    ports:
+      - "8082:8082"
+    networks:
+      - orderflow-network
+
+  notification-service:
+    build:
+      context: ./backend
+      dockerfile: notification-service/Dockerfile
+    container_name: orderflow-notification-service
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_started
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    ports:
+      - "8083:8083"
+    networks:
+      - orderflow-network
+
+  api-gateway:
+    build:
+      context: ./backend
+      dockerfile: api-gateway/Dockerfile
+    container_name: orderflow-api-gateway
+    restart: unless-stopped
+    depends_on:
+      product-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+    environment:
+      PRODUCT_SERVICE_URL: http://product-service:8081
+      ORDER_SERVICE_URL: http://order-service:8082
+    ports:
+      - "8080:8080"
+    networks:
+      - orderflow-network
+
+  portal-ui:
+    build:
+      context: ./frontend/portal-ui
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ""
+    container_name: orderflow-portal-ui
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_started
+    ports:
+      - "${PORTAL_UI_PORT:-5173}:80"
+    networks:
+      - orderflow-network
+
+  admin-ui:
+    build:
+      context: ./frontend/admin-ui
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ""
+        VITE_ADMIN_EMAIL: ${ORDERFLOW_ADMIN_EMAIL:-admin@orderflow.local}
+        VITE_ADMIN_PASSWORD: ${ORDERFLOW_ADMIN_PASSWORD:-OrderFlow!Admin123}
+    container_name: orderflow-admin-ui
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_started
+    ports:
+      - "${ADMIN_UI_PORT:-5174}:80"
+    networks:
+      - orderflow-network
+
+networks:
+  orderflow-network:
+    driver: bridge
+
+volumes:
+  product-db-data:
+  order-db-data:
+  kafka-data:

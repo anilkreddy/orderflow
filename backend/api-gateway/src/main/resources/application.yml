@@ -1,0 +1,53 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: product-service
+              uri: ${PRODUCT_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/products/**
+            - id: category-service
+              uri: ${PRODUCT_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/categories/**
+            - id: order-service
+              uri: ${ORDER_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/orders/**
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOrigins:
+                  - http://localhost:5173
+                  - http://localhost:5174
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - OPTIONS
+                allowedHeaders:
+                  - "*"
+                allowCredentials: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: gateway,health,info
+
+logging:
+  level:
+    com.orderflow.gateway: INFO
+    org.springframework.cloud.gateway: INFO
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

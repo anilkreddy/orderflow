@@ -10,6 +10,7 @@ import { OrderDetailsPage } from './pages/OrderDetailsPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { ProductFormPage } from './pages/ProductFormPage';
 import { ProductsPage } from './pages/ProductsPage';
+import { SearchWorkbenchPage } from './pages/SearchWorkbenchPage';
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route element={<AdminLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/search" element={<SearchWorkbenchPage />} />
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/orders/:id" element={<OrderDetailsPage />} />

@@ -10,8 +10,10 @@ const services = [
   ['Admin UI', 'Restricted backoffice for customers, orders, products, and access control', '5174'],
   ['API Gateway', 'Single entry point for product and order APIs', '8080'],
   ['Product Service', 'Catalog CRUD, inventory storage, and reservation endpoint', '8081'],
+  ['Search Service', 'OpenSearch-backed product search, facets, tuning, and reindex operations', '8084'],
   ['Order Service', 'Order persistence, product reservation, and Kafka event publication', '8082'],
   ['Notification Service', 'Kafka consumer for order.created confirmation logs', '8083'],
+  ['OpenSearch', 'Catalog index, synonyms, boosts, popularity scoring, and aggregations', '9200'],
   ['Kafka', 'Asynchronous event bus for order.created', '9092'],
 ];
 
@@ -39,6 +41,7 @@ export function IntegrationsPage() {
     () => [
       `${products.length} products are currently addressable through the gateway-backed product APIs.`,
       `${orders.length} persisted orders are available for customer and backoffice views.`,
+      'Search-service owns product discovery, facet aggregation, synonym tuning, and full index rebuilds.',
       'Authentication remains client-enforced in admin-ui until a server-side identity layer is introduced.',
     ],
     [orders.length, products.length],

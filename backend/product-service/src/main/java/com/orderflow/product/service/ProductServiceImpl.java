@@ -7,11 +7,14 @@ import com.orderflow.product.dto.ProductResponse;
 import com.orderflow.product.exception.BusinessException;
 import com.orderflow.product.exception.ResourceNotFoundException;
 import com.orderflow.product.mapper.ProductMapper;
+import com.orderflow.product.messaging.ProductDeletedEvent;
+import com.orderflow.product.messaging.ProductUpsertedEvent;
 import com.orderflow.product.repository.CategoryRepository;
 import com.orderflow.product.repository.ProductRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +28,7 @@ public class ProductServiceImpl implements ProductService {
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override
     @Transactional
@@ -37,7 +41,9 @@ public class ProductServiceImpl implements ProductService {
                 savedProduct.getName(),
                 savedProduct.getCategory().getCode(),
                 savedProduct.getStockQuantity());
-        return productMapper.toResponse(savedProduct);
+        ProductResponse response = productMapper.toResponse(savedProduct);
+        applicationEventPublisher.publishEvent(ProductUpsertedEvent.from(response));
+        return response;
     }
 
     @Override
@@ -67,7 +73,9 @@ public class ProductServiceImpl implements ProductService {
                 updatedProduct.getName(),
                 updatedProduct.getCategory().getCode(),
                 updatedProduct.getStockQuantity());
-        return productMapper.toResponse(updatedProduct);
+        ProductResponse response = productMapper.toResponse(updatedProduct);
+        applicationEventPublisher.publishEvent(ProductUpsertedEvent.from(response));
+        return response;
     }
 
     @Override
@@ -75,6 +83,7 @@ public class ProductServiceImpl implements ProductService {
     public void deleteProduct(Long id) {
         Product product = getProduct(id);
         productRepository.delete(product);
+        applicationEventPublisher.publishEvent(ProductDeletedEvent.of(product.getId()));
         log.info("Deleted product id={} name={}", product.getId(), product.getName());
     }
 
@@ -97,7 +106,9 @@ public class ProductServiceImpl implements ProductService {
                 updatedProduct.getId(),
                 quantity,
                 updatedProduct.getStockQuantity());
-        return productMapper.toResponse(updatedProduct);
+        ProductResponse response = productMapper.toResponse(updatedProduct);
+        applicationEventPublisher.publishEvent(ProductUpsertedEvent.from(response));
+        return response;
     }
 
     private Product getProduct(Long id) {

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Category, Order, OrderPayload, Product, ProductPayload } from '../types';
+import type { Category, Order, OrderPayload, Product, ProductPayload, ProductSearchResponse, SearchSuggestionResponse } from '../types';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080',
@@ -33,6 +33,49 @@ export const productApi = {
 export const categoryApi = {
   list: async (): Promise<Category[]> => {
     const { data } = await api.get<Category[]>('/api/categories');
+    return data;
+  },
+};
+
+export interface ProductSearchParams {
+  q?: string;
+  categoryCode?: string;
+  active?: boolean;
+  inStock?: boolean;
+  minStock?: number;
+  minPrice?: number;
+  maxPrice?: number;
+  priceBand?: string;
+  excludeProductId?: number;
+  sort?: string;
+  page?: number;
+  size?: number;
+}
+
+export const searchApi = {
+  search: async (params: ProductSearchParams): Promise<ProductSearchResponse> => {
+    const { data } = await api.get<ProductSearchResponse>('/api/search/products', {
+      params: {
+        q: params.q,
+        categoryCode: params.categoryCode,
+        active: params.active,
+        inStock: params.inStock,
+        minStock: params.minStock,
+        minPrice: params.minPrice,
+        maxPrice: params.maxPrice,
+        priceBand: params.priceBand,
+        excludeProductId: params.excludeProductId,
+        sort: params.sort,
+        page: params.page,
+        size: params.size,
+      },
+    });
+    return data;
+  },
+  suggestions: async (q: string, size = 8): Promise<SearchSuggestionResponse> => {
+    const { data } = await api.get<SearchSuggestionResponse>('/api/search/suggestions', {
+      params: { q, size },
+    });
     return data;
   },
 };

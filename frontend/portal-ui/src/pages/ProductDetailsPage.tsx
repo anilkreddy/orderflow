@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { LoadingPanel } from '../components/LoadingPanel';
 import { ProductCard } from '../components/ProductCard';
 import { QuantitySelector } from '../components/QuantitySelector';
 import { getDepartmentForProduct, getFeatureHighlights, getLeadBadge, getMerchandisingSignals, getReviewSnapshot, getShippingNote } from '../lib/catalog';
-import { productApi, toApiMessage } from '../lib/api';
+import { productApi, searchApi, toApiMessage } from '../lib/api';
 import { useCart } from '../lib/cart';
 import { formatCurrency } from '../lib/format';
 import type { Product } from '../types';
@@ -12,7 +12,7 @@ import type { Product } from '../types';
 export function ProductDetailsPage() {
   const { id } = useParams();
   const [product, setProduct] = useState<Product | null>(null);
-  const [catalog, setCatalog] = useState<Product[]>([]);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -22,17 +22,22 @@ export function ProductDetailsPage() {
     if (!id) {
       return;
     }
-
     const productId = id;
 
     async function loadProduct() {
       try {
-        const [productData, catalogData] = await Promise.all([
-          productApi.get(productId),
-          productApi.list(),
-        ]);
+        const productData = await productApi.get(productId);
+        const relatedSearch = await searchApi.search({
+          categoryCode: productData.categoryCode,
+          active: true,
+          excludeProductId: productData.id,
+          sort: 'featured',
+          size: 4,
+          page: 0,
+        });
+
         setProduct(productData);
-        setCatalog(catalogData.filter((entry) => entry.active));
+        setRelatedProducts(relatedSearch.items.filter((entry) => entry.active));
         setError(null);
       } catch (loadError) {
         setError(toApiMessage(loadError, 'Unable to load product details'));
@@ -63,16 +68,10 @@ export function ProductDetailsPage() {
   const review = getReviewSnapshot(product);
   const signals = getMerchandisingSignals(product);
 
-  const relatedProducts = useMemo(() => {
-    return catalog
-      .filter((entry) => entry.id !== product.id && entry.categoryCode === product.categoryCode)
-      .slice(0, 4);
-  }, [catalog, product.categoryCode, product.id]);
-
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-10 md:px-6">
       <div className="text-sm text-slate-500">
-        <Link to="/">Home</Link> / <Link to="/shop">Shop</Link> / <Link to={`/shop?department=${encodeURIComponent(department.label)}`}>{department.label}</Link> / {product.name}
+        <Link to="/">Home</Link> / <Link to="/shop">Shop</Link> / <Link to={`/shop?category=${encodeURIComponent(department.key)}`}>{department.label}</Link> / {product.name}
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
@@ -159,7 +158,7 @@ export function ProductDetailsPage() {
                 Order submission reserves stock in real time. Adding to cart alone does not hold inventory.
               </div>
               <div className="rounded-[22px] bg-slate-50 px-4 py-4">
-                Best fit for shoppers comparing availability, delivery speed, and overall basket value.
+                Related products now come from the search-service so category adjacency matches storefront search behavior.
               </div>
             </div>
           </div>
@@ -193,7 +192,7 @@ export function ProductDetailsPage() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Category context</p>
           <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-950">More from {department.label}</h2>
           <p className="mt-3 text-sm leading-7 text-slate-600">
-            Shoppers usually compare a few adjacent items before checkout. Keep them in the same browse lane.
+            Shoppers usually compare a few adjacent items before checkout. These matches come from the OpenSearch category slice.
           </p>
 
           {relatedProducts.length === 0 ? (

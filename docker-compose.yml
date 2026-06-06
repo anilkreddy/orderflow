@@ -67,6 +67,30 @@ services:
     networks:
       - orderflow-network
 
+  opensearch:
+    image: opensearchproject/opensearch:3.0.0
+    container_name: orderflow-opensearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    networks:
+      - orderflow-network
+
   product-service:
     build:
       context: ./backend
@@ -76,11 +100,14 @@ services:
     depends_on:
       product-db:
         condition: service_healthy
+      kafka:
+        condition: service_started
     environment:
       PRODUCT_DB_URL: jdbc:postgresql://product-db:5432/product_db
       PRODUCT_DB_USERNAME: product_user
       PRODUCT_DB_PASSWORD: product_pass
       ORDERFLOW_CATALOG_SEED_ENABLED: ${ORDERFLOW_CATALOG_SEED_ENABLED:-true}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
       - "8081:8081"
     networks:
@@ -126,6 +153,29 @@ services:
     networks:
       - orderflow-network
 
+  search-service:
+    build:
+      context: ./backend
+      dockerfile: search-service/Dockerfile
+    container_name: orderflow-search-service
+    restart: unless-stopped
+    depends_on:
+      product-service:
+        condition: service_started
+      kafka:
+        condition: service_started
+      opensearch:
+        condition: service_started
+    environment:
+      PRODUCT_SERVICE_BASE_URL: http://product-service:8081
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      OPENSEARCH_URL: http://opensearch:9200
+      SEARCH_REINDEX_ON_STARTUP: ${SEARCH_REINDEX_ON_STARTUP:-true}
+    ports:
+      - "8084:8084"
+    networks:
+      - orderflow-network
+
   api-gateway:
     build:
       context: ./backend
@@ -137,9 +187,12 @@ services:
         condition: service_started
       order-service:
         condition: service_started
+      search-service:
+        condition: service_started
     environment:
       PRODUCT_SERVICE_URL: http://product-service:8081
       ORDER_SERVICE_URL: http://order-service:8082
+      SEARCH_SERVICE_URL: http://search-service:8084
     ports:
       - "8080:8080"
     networks:
@@ -187,3 +240,4 @@ volumes:
   product-db-data:
   order-db-data:
   kafka-data:
+  opensearch-data:

@@ -9,6 +9,8 @@ ext {
     springdocVersion = '3.0.3'
     mapstructVersion = '1.6.3'
     lombokVersion = '1.18.38'
+    opensearchJavaVersion = '3.0.0'
+    httpClient5Version = '5.2.1'
 }
 
 subprojects {

@@ -104,7 +104,7 @@ export function AppLayout() {
                   key={department.key}
                   type="button"
                   className="rounded-full px-4 py-2 text-left transition hover:bg-slate-50 hover:text-slate-950"
-                  onClick={() => navigate(`/shop?department=${encodeURIComponent(department.label)}`)}
+                  onClick={() => navigate(`/shop?category=${encodeURIComponent(department.key)}`)}
                 >
                   {department.label}
                 </button>
@@ -149,7 +149,7 @@ export function AppLayout() {
                   key={department.key}
                   type="button"
                   className="text-left"
-                  onClick={() => navigate(`/shop?department=${encodeURIComponent(department.label)}`)}
+                  onClick={() => navigate(`/shop?category=${encodeURIComponent(department.key)}`)}
                 >
                   {department.label}
                 </button>

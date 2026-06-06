@@ -161,7 +161,7 @@ export function HomePage() {
               key={department.key}
               type="button"
               className="market-panel rounded-[26px] px-4 py-4 text-left transition hover:-translate-y-1"
-              onClick={() => navigate(`/shop?department=${encodeURIComponent(department.label)}`)}
+              onClick={() => navigate(`/shop?category=${encodeURIComponent(department.key)}`)}
             >
               <div className="text-sm font-semibold text-slate-950">{department.label}</div>
               <div className="mt-2 text-sm leading-6 text-slate-600">{department.blurb}</div>

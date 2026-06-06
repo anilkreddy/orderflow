@@ -4,114 +4,132 @@ import { EmptyState } from '../components/EmptyState';
 import { LoadingPanel } from '../components/LoadingPanel';
 import { ProductCard } from '../components/ProductCard';
 import { SectionHeading } from '../components/SectionHeading';
-import { departments, getDepartmentForProduct, getLeadBadge, getMerchandisingSignals, getReviewSnapshot } from '../lib/catalog';
-import { productApi, toApiMessage } from '../lib/api';
+import { categoryApi, searchApi, toApiMessage } from '../lib/api';
+import { departments, getLeadBadge } from '../lib/catalog';
 import { useCart } from '../lib/cart';
 import { formatCurrency } from '../lib/format';
-import type { Product } from '../types';
+import type { Category, Product, ProductSearchResponse } from '../types';
 
 const sortOptions = [
   { value: 'featured', label: 'Featured' },
   { value: 'price-low', label: 'Price: low to high' },
   { value: 'price-high', label: 'Price: high to low' },
   { value: 'inventory', label: 'Best stocked' },
+  { value: 'newest', label: 'Newest arrivals' },
 ] as const;
 
 type SortValue = (typeof sortOptions)[number]['value'];
 
+const emptySearchResponse: ProductSearchResponse = {
+  items: [],
+  total: 0,
+  page: 0,
+  size: 24,
+  hasNext: false,
+  facets: {
+    categories: [],
+    priceBands: [],
+    availability: {
+      inStockCount: 0,
+      outOfStockCount: 0,
+      activeCount: 0,
+      inactiveCount: 0,
+    },
+  },
+};
+
 export function ShopPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { addItem } = useCart();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [searchResponse, setSearchResponse] = useState<ProductSearchResponse>(emptySearchResponse);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sort, setSort] = useState<SortValue>('featured');
   const [draftSearch, setDraftSearch] = useState(searchParams.get('q') ?? '');
 
   const query = searchParams.get('q') ?? '';
-  const activeDepartment = searchParams.get('department') ?? 'All departments';
   const activeFocus = searchParams.get('focus') ?? 'all';
+  const activeCategoryCode = useMemo(() => resolveCategoryCode(searchParams, categories), [categories, searchParams]);
 
   useEffect(() => {
     setDraftSearch(query);
   }, [query]);
 
   useEffect(() => {
-    async function loadProducts() {
+    async function loadCategories() {
       try {
-        const data = await productApi.list();
-        setProducts(data.filter((product) => product.active));
+        const data = await categoryApi.list();
+        setCategories(data.filter((category) => category.active));
+      } catch {
+        setCategories([]);
+      }
+    }
+
+    void loadCategories();
+  }, []);
+
+  useEffect(() => {
+    async function loadSearchResults() {
+      setLoading(true);
+      try {
+        const data = await searchApi.search({
+          q: query || undefined,
+          categoryCode: activeCategoryCode ?? undefined,
+          active: true,
+          inStock: activeFocus === 'in-stock' ? true : undefined,
+          minStock: activeFocus === 'fast-dispatch' ? 20 : undefined,
+          minPrice: activeFocus === 'premium' ? 150 : undefined,
+          maxPrice: activeFocus === 'value' ? 50 : undefined,
+          sort,
+          page: 0,
+          size: 24,
+        });
+        setSearchResponse(data);
         setError(null);
       } catch (loadError) {
-        setError(toApiMessage(loadError, 'Unable to load products'));
+        setError(toApiMessage(loadError, 'Unable to load storefront search results'));
+        setSearchResponse(emptySearchResponse);
       } finally {
         setLoading(false);
       }
     }
 
-    void loadProducts();
-  }, []);
+    void loadSearchResults();
+  }, [activeCategoryCode, activeFocus, query, sort]);
 
-  const departmentCounts = useMemo(() => {
-    return departments.map((department) => ({
-      label: department.label,
-      count: products.filter((product) => getDepartmentForProduct(product).key === department.key).length,
-    }));
-  }, [products]);
-
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const normalized = `${product.name} ${product.categoryCode} ${product.categoryName} ${product.description}`.toLowerCase();
-      const matchesQuery = normalized.includes(query.trim().toLowerCase());
-      const matchesDepartment =
-        activeDepartment === 'All departments' || getDepartmentForProduct(product).label === activeDepartment;
-      const matchesFocus =
-        activeFocus === 'all' ||
-        (activeFocus === 'in-stock' && product.stockQuantity > 0) ||
-        (activeFocus === 'value' && product.price <= 50) ||
-        (activeFocus === 'premium' && product.price >= 150) ||
-        (activeFocus === 'fast-dispatch' && product.stockQuantity >= 20);
-      return matchesQuery && matchesDepartment && matchesFocus;
-    });
-  }, [activeDepartment, activeFocus, products, query]);
-
-  const sortedProducts = useMemo(() => {
-    const next = [...filteredProducts];
-    switch (sort) {
-      case 'price-low':
-        return next.sort((left, right) => left.price - right.price);
-      case 'price-high':
-        return next.sort((left, right) => right.price - left.price);
-      case 'inventory':
-        return next.sort((left, right) => right.stockQuantity - left.stockQuantity);
-      default:
-        return next;
+  const selectedCategory = useMemo(() => {
+    if (!activeCategoryCode) {
+      return null;
     }
-  }, [filteredProducts, sort]);
 
-  const heroProduct = sortedProducts[0] ?? null;
-  const remainingProducts = heroProduct ? sortedProducts.slice(1) : [];
-  const selectedDepartment = departments.find((department) => department.label === activeDepartment) ?? null;
+    return categories.find((category) => category.code === activeCategoryCode)
+      ?? fallbackCategory(activeCategoryCode);
+  }, [activeCategoryCode, categories]);
+
+  const heroProduct = searchResponse.items[0] ?? null;
+  const remainingProducts = heroProduct ? searchResponse.items.slice(1) : [];
 
   const listingStats = useMemo(() => {
-    const inStockCount = sortedProducts.filter((product) => product.stockQuantity > 0).length;
-    const averagePrice =
-      sortedProducts.length > 0 ? sortedProducts.reduce((sum, product) => sum + product.price, 0) / sortedProducts.length : 0;
-    const premiumCount = sortedProducts.filter((product) => product.price >= 150).length;
+    const items = searchResponse.items;
+    const inStockCount = items.filter((product) => product.stockQuantity > 0).length;
+    const averagePrice = items.length > 0 ? items.reduce((sum, product) => sum + product.price, 0) / items.length : 0;
+    const premiumCount = items.filter((product) => product.price >= 150).length;
 
     return {
       inStockCount,
       averagePrice,
       premiumCount,
     };
-  }, [sortedProducts]);
+  }, [searchResponse.items]);
 
-  function updateDepartment(department: string) {
+  function updateCategory(categoryCode: string | null) {
     const next = new URLSearchParams(searchParams);
-    if (department === 'All departments') {
-      next.delete('department');
+    next.delete('department');
+    if (categoryCode) {
+      next.set('category', categoryCode);
     } else {
-      next.set('department', department);
+      next.delete('category');
     }
     setSearchParams(next);
   }
@@ -129,6 +147,7 @@ export function ShopPage() {
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const next = new URLSearchParams(searchParams);
+    next.delete('department');
     if (draftSearch.trim()) {
       next.set('q', draftSearch.trim());
     } else {
@@ -145,17 +164,15 @@ export function ShopPage() {
     );
   }
 
+  const browseBlurb = selectedCategory ? getCategoryBlurb(selectedCategory.code, selectedCategory.name) : 'Search, filter, and compare products in a marketplace-style grid backed by the OpenSearch catalog.';
+
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-10 md:px-6">
       <div className="market-panel rounded-[36px] px-6 py-6 md:px-8 md:py-8">
         <SectionHeading
           eyebrow="Shop"
-          title={selectedDepartment ? `${selectedDepartment.label} for everyday baskets and bigger purchases` : 'Browse the active catalog'}
-          description={
-            selectedDepartment
-              ? `${selectedDepartment.blurb} Filter, compare, and move directly into checkout from the live OrderFlow catalog.`
-              : 'Search, filter, and compare products in a marketplace-style grid backed by the live product service.'
-          }
+          title={selectedCategory ? `${selectedCategory.name} for everyday baskets and bigger purchases` : 'Browse the active catalog'}
+          description={selectedCategory ? `${browseBlurb} Search results now flow through the dedicated search-service and OpenSearch index.` : browseBlurb}
         />
 
         <div className="mt-8 grid gap-4 xl:grid-cols-[1fr_220px] xl:items-end">
@@ -192,25 +209,23 @@ export function ShopPage() {
             type="button"
             className={[
               'rounded-full px-4 py-2 text-sm font-medium transition',
-              activeDepartment === 'All departments' ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+              !activeCategoryCode ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
             ].join(' ')}
-            onClick={() => updateDepartment('All departments')}
+            onClick={() => updateCategory(null)}
           >
-            All departments
+            All categories
           </button>
-          {departmentCounts.map((department) => (
+          {categories.map((category) => (
             <button
-              key={department.label}
+              key={category.code}
               type="button"
               className={[
                 'rounded-full px-4 py-2 text-sm font-medium transition',
-                activeDepartment === department.label
-                  ? 'bg-slate-950 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+                activeCategoryCode === category.code ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
               ].join(' ')}
-              onClick={() => updateDepartment(department.label)}
+              onClick={() => updateCategory(category.code)}
             >
-              {department.label} ({department.count})
+              {category.name}
             </button>
           ))}
         </div>
@@ -240,9 +255,9 @@ export function ShopPage() {
         </div>
 
         <div className="mt-6 grid gap-3 md:grid-cols-3">
-          <ShopMetric label="Matching results" value={`${sortedProducts.length}`} detail="Live catalog items after filters" />
+          <ShopMetric label="Matching results" value={`${searchResponse.total}`} detail={`Showing ${searchResponse.items.length} product(s) in the current view`} />
           <ShopMetric label="In stock now" value={`${listingStats.inStockCount}`} detail="Ready for basket and checkout" />
-          <ShopMetric label="Average price" value={formatCurrency(listingStats.averagePrice)} detail={`${listingStats.premiumCount} premium options in view`} />
+          <ShopMetric label="Average price" value={formatCurrency(listingStats.averagePrice)} detail={`${listingStats.premiumCount} premium options in this page`} />
         </div>
       </div>
 
@@ -253,12 +268,12 @@ export function ShopPage() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">Shopping snapshot</p>
           <div className="mt-4 space-y-4 text-sm leading-7 text-slate-600">
             <div className="rounded-[24px] bg-white px-4 py-4 shadow-[0_12px_25px_rgba(15,23,42,0.05)]">
-              <div className="font-semibold text-slate-950">{sortedProducts.length} matching product(s)</div>
-              <div className="mt-1">Active filters update instantly without leaving the portal.</div>
+              <div className="font-semibold text-slate-950">{searchResponse.total} matching product(s)</div>
+              <div className="mt-1">Search is now served from OpenSearch through the gateway-backed search-service.</div>
             </div>
             <div className="rounded-[24px] bg-white px-4 py-4 shadow-[0_12px_25px_rgba(15,23,42,0.05)]">
-              <div className="font-semibold text-slate-950">Department</div>
-              <div className="mt-1">{activeDepartment}</div>
+              <div className="font-semibold text-slate-950">Category</div>
+              <div className="mt-1">{selectedCategory?.name ?? 'All categories'}</div>
             </div>
             <div className="rounded-[24px] bg-white px-4 py-4 shadow-[0_12px_25px_rgba(15,23,42,0.05)]">
               <div className="font-semibold text-slate-950">Search query</div>
@@ -272,10 +287,10 @@ export function ShopPage() {
         </aside>
 
         <div>
-          {sortedProducts.length === 0 ? (
+          {searchResponse.total === 0 ? (
             <EmptyState
               title="No products match the current view"
-              description="Try a broader search or switch departments to see more of the active catalog."
+              description="Try a broader search or switch categories to see more of the active catalog."
             />
           ) : (
             <div className="space-y-6">
@@ -296,69 +311,43 @@ export function ShopPage() {
                       <p className="mt-4 max-w-2xl text-base leading-8 text-slate-600">{heroProduct.description}</p>
 
                       <div className="mt-6 flex flex-wrap items-center gap-5 text-sm text-slate-600">
-                        <div className="flex items-center gap-2 text-[#f59e0b]">
-                          <span className="text-lg">★</span>
-                          <span className="font-semibold text-slate-900">{getReviewSnapshot(heroProduct).rating}</span>
-                          <span>{getReviewSnapshot(heroProduct).reviews} ratings</span>
-                        </div>
-                        <span>{heroProduct.stockQuantity} available</span>
-                        <span>{heroProduct.categoryCode}</span>
-                      </div>
-
-                      <div className="mt-6 flex flex-wrap gap-3">
-                        <Link
-                          to={`/products/${heroProduct.id}`}
-                          className="inline-flex items-center rounded-full bg-[#0f63ff] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#1155d8]"
-                        >
-                          View details
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => addItem(heroProduct.id, 1)}
-                          className="inline-flex items-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                        >
-                          Add to cart
-                        </button>
+                        <span>{heroProduct.stockQuantity > 0 ? `${heroProduct.stockQuantity} units ready to reserve` : 'Currently unavailable'}</span>
+                        <span>{formatCurrency(heroProduct.price)}</span>
+                        <span>{heroProduct.active ? 'Available in the live checkout flow' : 'Inactive catalog item'}</span>
                       </div>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-1">
-                      {getMerchandisingSignals(heroProduct).map((signal) => (
-                        <div key={signal} className="rounded-[26px] bg-white px-4 py-4 shadow-[0_12px_25px_rgba(15,23,42,0.05)]">
-                          <div className="text-sm font-semibold text-slate-950">{signal}</div>
-                          <div className="mt-2 text-sm leading-6 text-slate-600">
-                            {signal === 'Fast-moving inventory'
-                              ? 'Good fit for shoppers who want less fulfillment uncertainty.'
-                              : signal === 'Higher-consideration purchase'
-                                ? 'Useful when customers are comparing quality, margin, and urgency.'
-                                : 'Aligned with the current department browse context.'}
-                          </div>
-                        </div>
-                      ))}
-                      <div className="rounded-[26px] bg-[#0b1730] px-5 py-5 text-white">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">Current price</div>
-                        <div className="mt-3 text-4xl font-extrabold tracking-tight">{formatCurrency(heroProduct.price)}</div>
-                        <div className="mt-2 text-sm text-slate-300">Guest checkout uses live stock reservation at order submission.</div>
+                    <div className="rounded-[30px] bg-slate-50 px-5 py-5">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Best-match buy box</div>
+                      <div className="mt-4 text-4xl font-extrabold tracking-tight text-slate-950">{formatCurrency(heroProduct.price)}</div>
+                      <div className="mt-2 text-sm leading-7 text-slate-600">
+                        Search surfaced this product based on your current query, filters, and sort mode.
+                      </div>
+                      <div className="mt-5 grid gap-3">
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center rounded-full bg-[#0f63ff] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1155d8] disabled:cursor-not-allowed disabled:bg-slate-300"
+                          disabled={heroProduct.stockQuantity === 0}
+                          onClick={() => addItem(heroProduct.id, 1)}
+                        >
+                          Add to cart
+                        </button>
+                        <Link to={`/products/${heroProduct.id}`} className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">
+                          View details
+                        </Link>
                       </div>
                     </div>
                   </div>
                 </div>
               ) : null}
 
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Product listing</p>
-                  <h3 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">
-                    {remainingProducts.length > 0 ? `${remainingProducts.length} more item(s) to browse` : 'Current matched assortment'}
-                  </h3>
+              {remainingProducts.length === 0 ? null : (
+                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                  {remainingProducts.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
                 </div>
-              </div>
-
-              <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
-                {(remainingProducts.length > 0 ? remainingProducts : sortedProducts).map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -375,10 +364,51 @@ interface ShopMetricProps {
 
 function ShopMetric({ label, value, detail }: ShopMetricProps) {
   return (
-    <div className="rounded-[24px] bg-white px-4 py-4 shadow-[0_12px_25px_rgba(15,23,42,0.05)]">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</div>
+    <div className="rounded-[26px] bg-white px-4 py-4 shadow-[0_12px_25px_rgba(15,23,42,0.05)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</div>
       <div className="mt-3 text-3xl font-extrabold tracking-tight text-slate-950">{value}</div>
-      <div className="mt-2 text-sm leading-6 text-slate-600">{detail}</div>
+      <div className="mt-2 text-sm text-slate-600">{detail}</div>
     </div>
   );
+}
+
+function resolveCategoryCode(searchParams: URLSearchParams, categories: Category[]) {
+  const explicitCategory = searchParams.get('category');
+  if (explicitCategory) {
+    return explicitCategory.trim().toLowerCase();
+  }
+
+  const legacyDepartment = searchParams.get('department');
+  if (!legacyDepartment) {
+    return null;
+  }
+
+  const normalizedDepartment = legacyDepartment.trim().toLowerCase();
+  const categoryMatch = categories.find((category) => category.name.toLowerCase() === normalizedDepartment || category.code === normalizedDepartment);
+  if (categoryMatch) {
+    return categoryMatch.code;
+  }
+
+  const departmentMatch = departments.find((department) => department.label.toLowerCase() === normalizedDepartment || department.key === normalizedDepartment);
+  return departmentMatch?.key ?? null;
+}
+
+function fallbackCategory(categoryCode: string) {
+  const department = departments.find((entry) => entry.key === categoryCode);
+  if (!department) {
+    return null;
+  }
+
+  return {
+    code: department.key,
+    name: department.label,
+    active: true,
+    createdAt: '',
+    updatedAt: '',
+  } satisfies Category;
+}
+
+function getCategoryBlurb(categoryCode: string, categoryName: string) {
+  const department = departments.find((entry) => entry.key === categoryCode || entry.label === categoryName);
+  return department?.blurb ?? `${categoryName} shoppers can compare availability, price, and checkout readiness from the live catalog.`;
 }

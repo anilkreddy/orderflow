@@ -47,6 +47,54 @@ export interface OrderItem {
   unitPrice: number;
 }
 
+export interface SearchResultProduct extends Product {
+  inStock: boolean;
+  popularityScore: number;
+  score: number;
+}
+
+export interface SearchCategoryFacet {
+  categoryCode: string;
+  categoryName: string;
+  count: number;
+  selected: boolean;
+}
+
+export interface SearchPriceBandFacet {
+  code: string;
+  label: string;
+  minPrice: number | null;
+  maxPrice: number | null;
+  count: number;
+  selected: boolean;
+}
+
+export interface SearchAvailabilityFacets {
+  inStockCount: number;
+  outOfStockCount: number;
+  activeCount: number;
+  inactiveCount: number;
+}
+
+export interface ProductSearchFacets {
+  categories: SearchCategoryFacet[];
+  priceBands: SearchPriceBandFacet[];
+  availability: SearchAvailabilityFacets;
+}
+
+export interface ProductSearchResponse {
+  items: SearchResultProduct[];
+  total: number;
+  page: number;
+  size: number;
+  hasNext: boolean;
+  facets: ProductSearchFacets;
+}
+
+export interface SearchSuggestionResponse {
+  suggestions: string[];
+}
+
 export interface Order {
   id: number;
   customerName: string;

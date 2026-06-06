@@ -9,16 +9,17 @@ The platform currently includes:
 - `portal-ui`: a customer-facing ecommerce storefront
 - `admin-ui`: a credential-gated backoffice console
 - Spring Cloud Gateway as the API entry point
-- Product, order, and notification microservices
+- Product, order, notification, and search microservices
 - PostgreSQL for product and order persistence
 - Kafka for asynchronous order events
+- OpenSearch for product discovery, faceting, relevance tuning, and search suggestions
 - Docker Compose for infrastructure and full-stack container runs
 - GitHub Actions for backend and frontend build verification
 
 The frontend split is intentional:
 
 - `portal-ui` is for browsing products, managing a cart, checking out, and tracking orders
-- `admin-ui` is for customers, orders, products, access control, and integration oversight
+- `admin-ui` is for customers, orders, products, search operations, access control, and integration oversight
 - the split preserves a clean boundary between public commerce flows and administrative controls
 - the current admin credential gate is intentionally documented as a frontend-only control until backend authentication exists
 
@@ -30,9 +31,13 @@ graph TD
     AUI[Admin UI\n5174] --> GW
     GW --> PS[Product Service\n8081]
     GW --> OS[Order Service\n8082]
+    GW --> SS[Search Service\n8084]
     OS --> PS
+    PS --> K[(Kafka\n9092)]
+    K --> SS
     OS --> K[(Kafka\n9092)]
     K --> NS[Notification Service\n8083]
+    SS --> OP[(OpenSearch\n9200)]
     PS --> PDB[(Product PostgreSQL\n5433)]
     OS --> ODB[(Order PostgreSQL\n5434)]
 ```
@@ -48,7 +53,8 @@ orderflow/
 │   ├── api-gateway/
 │   ├── product-service/
 │   ├── order-service/
-│   └── notification-service/
+│   ├── notification-service/
+│   └── search-service/
 ├── frontend/
 │   ├── portal-ui/
 │   └── admin-ui/
@@ -70,6 +76,7 @@ orderflow/
 - Spring Validation
 - Spring Kafka
 - Spring Cloud Gateway
+- OpenSearch REST API via Spring `RestClient`
 - PostgreSQL
 - MapStruct
 - SpringDoc OpenAPI
@@ -91,6 +98,7 @@ orderflow/
 - Docker Compose
 - Apache Kafka
 - PostgreSQL
+- OpenSearch
 
 ### CI/CD
 
@@ -104,11 +112,14 @@ orderflow/
 | Product Service | `8081` |
 | Order Service | `8082` |
 | Notification Service | `8083` |
+| Search Service | `8084` |
 | Portal UI | `5173` |
 | Admin UI | `5174` |
 | Product PostgreSQL | `5433` |
 | Order PostgreSQL | `5434` |
 | Kafka | `9092` |
+| OpenSearch | `9200` |
+| OpenSearch Performance API | `9600` |
 
 ## Frontend Apps
 
@@ -131,6 +142,7 @@ Purpose:
 
 - restricted backoffice for reviewing customers, orders, and product inventory
 - product CRUD management through the same gateway-backed APIs used by the storefront
+- search workbench for facet inspection, tuning visibility, and manual reindex controls
 - access control, credential boundary, and runtime integration visibility
 - a future home for server-enforced RBAC, audit trails, and identity integration
 
@@ -189,6 +201,30 @@ Status endpoint:
 
 - `GET /api/notifications/status`
 
+### Search Service
+
+Base URL: `http://localhost:8084`
+
+Responsibilities:
+
+- expose product search and suggestion APIs backed by OpenSearch
+- return category, availability, and price-band aggregations alongside search hits
+- apply synonym-aware relevance tuning, boosts, and derived popularity scoring
+- consume Kafka product indexing events from `product-service`
+- rebuild the catalog index from `product-service` on startup and on demand
+- keep search concerns isolated from catalog CRUD
+
+Endpoints:
+
+- `GET /api/search/products`
+- `GET /api/search/suggestions`
+- `GET /api/search/tuning`
+- `GET /api/search/synonyms`
+- `POST /api/search/synonyms`
+- `PUT /api/search/synonyms/{synonymId}`
+- `DELETE /api/search/synonyms/{synonymId}`
+- `POST /api/search/reindex/products`
+
 ### API Gateway
 
 Base URL: `http://localhost:8080`
@@ -196,11 +232,15 @@ Base URL: `http://localhost:8080`
 Routes:
 
 - `/api/products/**` -> `product-service`
+- `/api/categories/**` -> `product-service`
 - `/api/orders/**` -> `order-service`
+- `/api/search/**` -> `search-service`
 
 Both frontends proxy their `/api/*` requests through the gateway.
 
-## Kafka Topic
+## Kafka Topics
+
+Order notifications:
 
 - Topic: `order.created`
 - Publisher: `order-service`
@@ -216,6 +256,44 @@ Event payload:
 - `String status`
 - `LocalDateTime createdAt`
 
+Search indexing:
+
+- Topic: `product.upserted`
+- Publisher: `product-service`
+- Consumer: `search-service`
+- keeps stock, active state, and product details synchronized into OpenSearch
+
+- Topic: `product.deleted`
+- Publisher: `product-service`
+- Consumer: `search-service`
+- removes deleted products from the OpenSearch index
+
+## Search Capabilities
+
+- search results include live facet data for:
+  - category aggregations
+  - price bands
+  - active vs inactive counts
+  - in-stock vs out-of-stock counts
+- supported search filters include:
+  - `q`
+  - `categoryCode`
+  - `active`
+  - `inStock`
+  - `minStock`
+  - `minPrice`
+  - `maxPrice`
+  - `priceBand`
+  - `excludeProductId`
+  - `sort`
+- relevance tuning currently combines:
+  - runtime-managed synonym expansion
+  - explicit field boosts for exact name, prefix, category, and keyword matches
+  - derived popularity scoring based on stock depth, freshness, and active state
+- synonym groups are now runtime-managed through `search-service` and editable from `admin-ui`
+- search-service seeds the synonym catalog once from defaults, then persists edits in a dedicated OpenSearch configuration index
+- `admin-ui` exposes a dedicated search workbench to preview those behaviors and trigger a full reindex
+
 ## API Documentation
 
 Swagger UI is enabled on every backend service:
@@ -224,6 +302,7 @@ Swagger UI is enabled on every backend service:
 - Product Service: `http://localhost:8081/swagger-ui.html`
 - Order Service: `http://localhost:8082/swagger-ui.html`
 - Notification Service: `http://localhost:8083/swagger-ui.html`
+- Search Service: `http://localhost:8084/swagger-ui.html`
 
 ## Local Run Instructions
 
@@ -243,13 +322,16 @@ Open:
 - Product Service Swagger: `http://localhost:8081/swagger-ui.html`
 - Order Service Swagger: `http://localhost:8082/swagger-ui.html`
 - Notification Service Swagger: `http://localhost:8083/swagger-ui.html`
+- Search Service Swagger: `http://localhost:8084/swagger-ui.html`
 - Category API through gateway: `http://localhost:8080/api/categories`
+- Product search through gateway: `http://localhost:8080/api/search/products`
+- OpenSearch API: `http://localhost:9200`
 
 Useful commands:
 
 ```bash
 docker compose ps
-docker compose logs -f api-gateway order-service notification-service portal-ui admin-ui
+docker compose logs -f api-gateway product-service order-service search-service notification-service portal-ui admin-ui
 docker compose down
 docker compose down -v
 ```
@@ -258,6 +340,8 @@ Container wiring details:
 
 - `portal-ui` serves the customer storefront on port `5173`
 - `admin-ui` serves the restricted backoffice on port `5174`
+- `search-service` reindexes the seeded product catalog on startup so `/shop` is searchable immediately
+- OpenSearch runs as a single-node local development container with security disabled for simplicity
 - both frontend containers proxy `/api/*` to `api-gateway`
 - `admin-ui` bakes its credential gate from `ORDERFLOW_ADMIN_EMAIL` and `ORDERFLOW_ADMIN_PASSWORD` at build time
 - `product-service` seeds a sample catalog of 50 products across 10 categories on startup unless `ORDERFLOW_CATALOG_SEED_ENABLED=false`

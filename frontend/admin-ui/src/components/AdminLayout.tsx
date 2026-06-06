@@ -13,6 +13,7 @@ interface NavigationItem {
 
 const navigation: NavigationItem[] = [
   { to: '/dashboard', label: 'Dashboard', note: 'Revenue and performance', icon: DashboardIcon },
+  { to: '/search', label: 'Search', note: 'Preview and relevance', icon: SearchIcon },
   { to: '/orders', label: 'Orders', note: 'Queue and fulfillment', icon: OrderIcon },
   { to: '/products', label: 'Products', note: 'Catalog and inventory', icon: ProductIcon },
   { to: '/customers', label: 'Customers', note: 'Profiles and lifetime value', icon: CustomersIcon },

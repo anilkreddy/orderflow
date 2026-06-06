@@ -21,6 +21,10 @@ spring:
               uri: ${ORDER_SERVICE_URL:http://localhost:8082}
               predicates:
                 - Path=/api/orders/**
+            - id: search-service
+              uri: ${SEARCH_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/search/**
           globalcors:
             cors-configurations:
               '[/**]':

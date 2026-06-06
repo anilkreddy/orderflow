@@ -8,6 +8,38 @@ const utilityLinks = [
   { to: '/track-order', label: 'Track order' },
 ];
 
+function resolvePageTitle(pathname: string) {
+  if (pathname === '/') {
+    return 'Home';
+  }
+
+  if (pathname === '/shop' || pathname === '/catalog') {
+    return 'Shop';
+  }
+
+  if (pathname.startsWith('/products/')) {
+    return 'Product Details';
+  }
+
+  if (pathname === '/cart') {
+    return 'Cart';
+  }
+
+  if (pathname === '/checkout') {
+    return 'Checkout';
+  }
+
+  if (pathname === '/track-order') {
+    return 'Track Order';
+  }
+
+  if (pathname.startsWith('/orders/')) {
+    return 'Order Status';
+  }
+
+  return 'Storefront';
+}
+
 export function AppLayout() {
   const { itemCount } = useCart();
   const navigate = useNavigate();
@@ -22,6 +54,10 @@ export function AppLayout() {
     const params = new URLSearchParams(location.search);
     setSearch(params.get('q') ?? '');
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    document.title = `${resolvePageTitle(location.pathname)} | Oflio Commerce`;
+  }, [location.pathname]);
 
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,7 +84,7 @@ export function AppLayout() {
                 OF
               </span>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-300">Portal UI</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-300">Oflio Commerce</p>
                 <h1 className="font-display text-2xl font-semibold tracking-tight text-white">Oflio</h1>
               </div>
             </NavLink>
@@ -128,7 +164,7 @@ export function AppLayout() {
         <div className="mx-auto grid max-w-[1480px] gap-10 px-4 py-14 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr] md:px-6">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">Oflio</p>
-            <h2 className="mt-4 font-display text-3xl font-semibold tracking-tight text-white">Marketplace-style shopping on top of the OrderFlow services.</h2>
+            <h2 className="mt-4 font-display text-3xl font-semibold tracking-tight text-white">Marketplace-style shopping powered by Oflio Commerce services.</h2>
             <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300">
               Customers can browse active products, build a basket, and submit live orders while backoffice management stays isolated in admin-ui.
             </p>

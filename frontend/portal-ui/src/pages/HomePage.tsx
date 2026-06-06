@@ -13,6 +13,7 @@ export function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [heroIndex, setHeroIndex] = useState(0);
 
   useEffect(() => {
     async function loadProducts() {
@@ -51,6 +52,88 @@ export function HomePage() {
       .filter((entry) => entry.count > 0)
       .slice(0, 6);
   }, [products]);
+  const heroBanners = useMemo(
+    () => [
+      {
+        eyebrow: 'Fresh deals',
+        title: 'Live inventory, daily essentials, and high-intent category offers.',
+        description:
+          'Browse active inventory, compare practical everyday picks, and move straight into a real Oflio Commerce checkout flow.',
+        primaryLabel: 'Shop all products',
+        primaryAction: () => navigate('/shop'),
+        secondaryLabel: 'Track an order',
+        secondaryAction: () => navigate('/track-order'),
+        statLabel: 'Active products',
+        statValue: `${products.length}`,
+        accentLabel: 'Ready inventory',
+        accentValue: `${assortmentStats.totalInventory} units`,
+        imageUrl: 'https://images.pexels.com/photos/34577/pexels-photo.jpg?auto=compress&cs=tinysrgb&w=1800',
+        imageCredit: 'Image via Pexels',
+      },
+      {
+        eyebrow: 'Department spotlight',
+        title: 'Shop electronics, home upgrades, pantry staples, and everyday value.',
+        description:
+          'The storefront is structured like a retail marketplace, with department-led discovery and quick access to the products customers can actually buy right now.',
+        primaryLabel: 'Browse departments',
+        primaryAction: () => navigate('/shop'),
+        secondaryLabel: 'Home & Kitchen',
+        secondaryAction: () => navigate('/shop?category=home-kitchen'),
+        statLabel: 'Featured departments',
+        statValue: `${departmentHighlights.length}`,
+        accentLabel: 'Average price',
+        accentValue: formatCurrency(assortmentStats.averagePrice),
+        imageUrl: 'https://images.pexels.com/photos/6956803/pexels-photo-6956803.jpeg?auto=compress&cs=tinysrgb&w=1800',
+        imageCredit: 'Image via Pexels',
+      },
+      {
+        eyebrow: 'Checkout confidence',
+        title: 'Guest-friendly checkout with direct order tracking after purchase.',
+        description:
+          'Customers can place an order without stepping into an internal workflow, then check status from the same storefront using their order id and email.',
+        primaryLabel: 'Start checkout flow',
+        primaryAction: () => navigate('/cart'),
+        secondaryLabel: 'Open order lookup',
+        secondaryAction: () => navigate('/track-order'),
+        statLabel: 'Self-service flow',
+        statValue: 'Guest checkout',
+        accentLabel: 'Order visibility',
+        accentValue: 'Live status lookup',
+        imageUrl: 'https://images.pexels.com/photos/7620626/pexels-photo-7620626.jpeg?auto=compress&cs=tinysrgb&w=1800',
+        imageCredit: 'Image via Pexels',
+      },
+      {
+        eyebrow: 'Grocery run',
+        title: 'Weekly staples, pantry restocks, and fast-moving supermarket picks.',
+        description:
+          'Use a storefront that feels familiar to shoppers: full-width merchandising, clear category paths, and real backend inventory behind every purchase.',
+        primaryLabel: 'Shop grocery & gourmet',
+        primaryAction: () => navigate('/shop?category=grocery-gourmet'),
+        secondaryLabel: 'Browse pet & home',
+        secondaryAction: () => navigate('/shop?category=pet-supplies'),
+        statLabel: 'Live departments',
+        statValue: `${departmentHighlights.length}`,
+        accentLabel: 'Marketplace flow',
+        accentValue: 'Retail-first browsing',
+        imageUrl: 'https://images.pexels.com/photos/4199256/pexels-photo-4199256.jpeg?auto=compress&cs=tinysrgb&w=1800',
+        imageCredit: 'Image via Pexels',
+      },
+    ],
+    [assortmentStats.averagePrice, assortmentStats.totalInventory, departmentHighlights.length, navigate, products.length],
+  );
+  const activeHero = heroBanners[heroIndex];
+
+  useEffect(() => {
+    if (heroBanners.length <= 1) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setHeroIndex((current) => (current + 1) % heroBanners.length);
+    }, 5600);
+
+    return () => window.clearInterval(intervalId);
+  }, [heroBanners.length]);
 
   if (loading) {
     return (
@@ -62,68 +145,134 @@ export function HomePage() {
 
   return (
     <div className="pb-12">
-      <section className="mx-auto max-w-[1480px] px-4 py-8 md:px-6 md:py-10">
-        <div className="grid gap-5 xl:grid-cols-[1.18fr_0.82fr]">
-          <div className="market-hero rounded-[40px] px-6 py-8 text-white md:px-9 md:py-10">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.34em] text-slate-200">Customer Marketplace</p>
-            <h1 className="mt-5 max-w-3xl font-display text-4xl font-extrabold tracking-tight text-white md:text-6xl xl:text-7xl">
-              Big-value shopping on a real OrderFlow checkout.
-            </h1>
-            <p className="mt-5 max-w-2xl text-base leading-8 text-slate-200 md:text-lg">
-              Browse live products, add them to your basket, and submit orders through the same gateway-backed services that power the rest of the platform.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/shop" className="inline-flex items-center rounded-full bg-[#ffcd38] px-6 py-3 text-sm font-semibold text-[#08162c] transition hover:bg-[#ffd962]">
-                Start shopping
-              </Link>
-              <Link to="/track-order" className="inline-flex items-center rounded-full border border-white/20 bg-white/8 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/14">
-                Track an order
-              </Link>
+      <section className="relative overflow-hidden bg-[#08162c]">
+        <div className="absolute inset-0 bg-slate-900">
+          <img
+            key={activeHero.imageUrl}
+            src={activeHero.imageUrl}
+            alt={activeHero.title}
+            className="h-full w-full object-cover opacity-100 transition-opacity duration-700"
+          />
+        </div>
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,22,44,0.9)_0%,rgba(8,22,44,0.72)_36%,rgba(8,22,44,0.28)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,22,44,0.12)_0%,rgba(8,22,44,0.32)_100%)]" />
+
+        <div className="relative mx-auto flex min-h-[72vh] max-w-[1480px] items-end px-4 py-10 md:px-6 md:py-12">
+          <button
+            type="button"
+            aria-label="Previous banner"
+            className="absolute left-4 top-1/2 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/10 text-2xl text-white backdrop-blur-sm transition hover:bg-white/18 lg:inline-flex"
+            onClick={() => setHeroIndex((current) => (current - 1 + heroBanners.length) % heroBanners.length)}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            aria-label="Next banner"
+            className="absolute right-4 top-1/2 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/10 text-2xl text-white backdrop-blur-sm transition hover:bg-white/18 lg:inline-flex"
+            onClick={() => setHeroIndex((current) => (current + 1) % heroBanners.length)}
+          >
+            ›
+          </button>
+
+          <div className="w-full">
+            <div className="max-w-3xl">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="rounded-full border border-white/16 bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-100 backdrop-blur-sm">
+                  {activeHero.eyebrow}
+                </span>
+                <span className="rounded-full bg-[#ffcd38] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#08162c]">
+                  {activeHero.imageCredit}
+                </span>
+              </div>
+
+              <h1 className="mt-6 max-w-4xl font-display text-4xl font-extrabold tracking-tight text-white md:text-6xl xl:text-7xl">
+                {activeHero.title}
+              </h1>
+              <p className="mt-5 max-w-2xl text-base leading-8 text-slate-100 md:text-lg">
+                {activeHero.description}
+              </p>
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-full bg-[#ffcd38] px-6 py-3 text-sm font-semibold text-[#08162c] transition hover:bg-[#ffd962]"
+                  onClick={activeHero.primaryAction}
+                >
+                  {activeHero.primaryLabel}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-full border border-white/18 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/16"
+                  onClick={activeHero.secondaryAction}
+                >
+                  {activeHero.secondaryLabel}
+                </button>
+              </div>
             </div>
 
-            <div className="mt-10 grid gap-3 md:grid-cols-3">
-              <div className="rounded-[24px] bg-white/10 px-4 py-4 backdrop-blur-sm">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-200">Active products</div>
-                <div className="mt-3 text-3xl font-extrabold text-white">{products.length}</div>
+            <div className="mt-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+              <div className="grid gap-3 md:grid-cols-3 xl:max-w-4xl xl:flex-1">
+                <div className="rounded-[24px] border border-white/12 bg-white/10 px-4 py-4 backdrop-blur-sm">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-100">{activeHero.statLabel}</div>
+                  <div className="mt-3 text-3xl font-extrabold text-white">{activeHero.statValue}</div>
+                </div>
+                <div className="rounded-[24px] border border-white/12 bg-white/10 px-4 py-4 backdrop-blur-sm">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-100">{activeHero.accentLabel}</div>
+                  <div className="mt-3 text-3xl font-extrabold text-white">{activeHero.accentValue}</div>
+                </div>
+                <div className="rounded-[24px] border border-white/12 bg-white/10 px-4 py-4 backdrop-blur-sm">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-100">Live departments</div>
+                  <div className="mt-3 text-3xl font-extrabold text-white">{departmentHighlights.length}</div>
+                </div>
               </div>
-              <div className="rounded-[24px] bg-white/10 px-4 py-4 backdrop-blur-sm">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-200">Inventory live</div>
-                <div className="mt-3 text-3xl font-extrabold text-white">{assortmentStats.totalInventory}</div>
-              </div>
-              <div className="rounded-[24px] bg-white/10 px-4 py-4 backdrop-blur-sm">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-200">Average price</div>
-                <div className="mt-3 text-3xl font-extrabold text-white">{formatCurrency(assortmentStats.averagePrice)}</div>
+
+              <div className="flex items-center gap-2 self-start xl:self-auto">
+                {heroBanners.map((banner, index) => (
+                  <button
+                    key={banner.eyebrow}
+                    type="button"
+                    aria-label={`Show banner ${index + 1}`}
+                    className={[
+                      'h-2.5 rounded-full border border-white/10 bg-white/32 transition-all duration-300',
+                      index === heroIndex ? 'w-10 bg-white' : 'w-2.5 hover:bg-white/70',
+                    ].join(' ')}
+                    onClick={() => setHeroIndex(index)}
+                  />
+                ))}
               </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="grid gap-4">
-            <div className="market-promo rounded-[34px] px-6 py-6">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">Today’s focus</p>
-              <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-950">Shop active inventory with practical filters and fast basket flow.</h2>
-              <p className="mt-4 text-sm leading-7 text-slate-600">
-                The portal is now shaped like a retail marketplace, not an internal dashboard. Customers land in shopping, not operations.
-              </p>
-              <button
-                type="button"
-                className="mt-6 inline-flex items-center rounded-full bg-[#0f63ff] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1155d8]"
-                onClick={() => navigate('/shop')}
-              >
-                Explore the catalog
-              </button>
+      <section className="mx-auto max-w-[1480px] px-4 py-8 md:px-6 md:py-10">
+        <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="market-promo rounded-[34px] px-6 py-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">Today’s focus</p>
+            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-950">Shop active inventory with practical filters and fast basket flow.</h2>
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
+              The portal behaves like a customer storefront first: discovery, checkout, and order lookup stay front and center while admin operations stay separate.
+            </p>
+            <button
+              type="button"
+              className="mt-6 inline-flex items-center rounded-full bg-[#0f63ff] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1155d8]"
+              onClick={() => navigate('/shop')}
+            >
+              Explore the catalog
+            </button>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+            <div className="market-promo rounded-[30px] px-5 py-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Checkout</p>
+              <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-950">Guest-friendly and direct</div>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Customers can place live orders without switching into an internal flow.</p>
             </div>
-
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-              <div className="market-promo rounded-[30px] px-5 py-5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Checkout</p>
-                <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-950">Guest-friendly and direct</div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Customers can place live orders without switching into an internal flow.</p>
-              </div>
-              <div className="market-promo rounded-[30px] px-5 py-5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Order lookup</p>
-                <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-950">Self-service tracking</div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Use checkout email and order id to pull order details directly from the order service.</p>
-              </div>
+            <div className="market-promo rounded-[30px] px-5 py-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Order lookup</p>
+              <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-950">Self-service tracking</div>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Use checkout email and order id to pull order details directly from the order service.</p>
             </div>
           </div>
         </div>

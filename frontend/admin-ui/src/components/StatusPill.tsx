@@ -14,7 +14,7 @@ const toneClasses: Record<NonNullable<StatusPillProps['tone']>, string> = {
 
 export function StatusPill({ children, tone = 'muted' }: StatusPillProps) {
   return (
-    <span className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] ring-1 ring-inset ${toneClasses[tone]}`}>
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${toneClasses[tone]}`}>
       {children}
     </span>
   );

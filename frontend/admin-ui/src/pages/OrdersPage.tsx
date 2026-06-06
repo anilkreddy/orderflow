@@ -4,11 +4,11 @@ import { AdminPanel } from '../components/AdminPanel';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusPill } from '../components/StatusPill';
 import { orderApi, toApiMessage } from '../lib/api';
-import { formatCurrency, formatDateTime, formatNumber, formatPercent, formatStatus, orderStatusTone } from '../lib/format';
+import { formatCompactCurrency, formatCurrency, formatDateTime, formatNumber, formatPercent, formatStatus, orderStatusTone } from '../lib/format';
 import type { Order, OrderStatus } from '../types';
 
-const statusOptions: Array<{ label: string; value: OrderStatus | 'ALL' }> = [
-  { label: 'All statuses', value: 'ALL' },
+const statusTabs: Array<{ label: string; value: OrderStatus | 'ALL' }> = [
+  { label: 'All orders', value: 'ALL' },
   { label: 'Created', value: 'CREATED' },
   { label: 'Confirmed', value: 'CONFIRMED' },
   { label: 'Failed', value: 'FAILED' },
@@ -50,15 +50,10 @@ export function OrdersPage() {
     });
   }, [orders, query, status]);
 
-  const confirmedRate = useMemo(() => {
-    if (orders.length === 0) {
-      return 0;
-    }
-
-    return (orders.filter((order) => order.status === 'CONFIRMED').length / orders.length) * 100;
-  }, [orders]);
-
+  const confirmedCount = useMemo(() => orders.filter((order) => order.status === 'CONFIRMED').length, [orders]);
   const failedCount = useMemo(() => orders.filter((order) => order.status === 'FAILED').length, [orders]);
+  const createdCount = useMemo(() => orders.filter((order) => order.status === 'CREATED').length, [orders]);
+  const confirmedRate = useMemo(() => (orders.length > 0 ? (confirmedCount / orders.length) * 100 : 0), [confirmedCount, orders.length]);
   const averageBasket = useMemo(() => {
     if (orders.length === 0) {
       return 0;
@@ -66,108 +61,158 @@ export function OrdersPage() {
 
     return orders.reduce((sum, order) => sum + order.totalAmount, 0) / orders.length;
   }, [orders]);
+  const recentExceptions = useMemo(() => orders.filter((order) => order.status === 'FAILED' || order.status === 'CANCELLED').slice(0, 5), [orders]);
 
   return (
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Orders"
-        title="Review queue health and order flow performance"
-        description="Use this queue to inspect live orders, filter by status, and jump into the individual order detail view when support or operational review is needed."
+        title="Monitor the queue with fulfillment-first controls"
+        description="The order index is designed for support and operations teams: status views, searchable customer context, dense row data, and a clear split between healthy throughput and exceptions."
       />
 
-      {error ? <div className="rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+      {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <MiniStat label="Total orders" value={formatNumber(orders.length)} />
-        <MiniStat label="Confirmed rate" value={formatPercent(confirmedRate, 0)} />
-        <MiniStat label="Average basket" value={formatCurrency(averageBasket)} />
-        <MiniStat label="Failed orders" value={formatNumber(failedCount)} />
+      <div className="grid gap-4 xl:grid-cols-4">
+        <MetricSummary label="Orders" value={formatNumber(orders.length)} note="All captured orders" />
+        <MetricSummary label="Confirmed rate" value={formatPercent(confirmedRate, 0)} note={`${formatNumber(confirmedCount)} confirmed successfully`} />
+        <MetricSummary label="Average basket" value={formatCurrency(averageBasket)} note="Average order total" />
+        <MetricSummary label="Exceptions" value={formatNumber(failedCount)} note={`${formatNumber(createdCount)} still in created state`} />
       </div>
 
-      <AdminPanel className="p-0 overflow-hidden">
-        <div className="grid gap-4 border-b border-slate-200 px-6 py-5 xl:grid-cols-[1fr_220px_220px] xl:items-end">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Queue filters</p>
-            <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">Find the order you need fast</h2>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <AdminPanel className="p-0 overflow-hidden">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-wrap gap-2">
+                {statusTabs.map((tab) => (
+                  <button key={tab.value} type="button" onClick={() => setStatus(tab.value)} className={`resource-tab ${status === tab.value ? 'is-active' : ''}`}>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search order id, customer name, or email"
+                className="backoffice-search min-w-[280px]"
+              />
+            </div>
           </div>
-          <label className="text-sm font-medium text-slate-600">
-            Search
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Order id, name, or email"
-              className="mt-2 w-full rounded-full border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
-            />
-          </label>
-          <label className="text-sm font-medium text-slate-600">
-            Status
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value as OrderStatus | 'ALL')}
-              className="mt-2 w-full rounded-full border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
-            >
-              {statusOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-              <tr>
-                <th className="px-6 py-4">Order</th>
-                <th className="px-6 py-4">Customer</th>
-                <th className="px-6 py-4">Value</th>
-                <th className="px-6 py-4">Items</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Created</th>
-                <th className="px-6 py-4" aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 bg-white">
-              {filteredOrders.map((order) => (
-                <tr key={order.id} className="text-slate-600">
-                  <td className="px-6 py-4 font-semibold text-slate-950">#{order.id}</td>
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-slate-950">{order.customerName}</div>
-                    <div className="mt-1 text-slate-500">{order.customerEmail}</div>
-                  </td>
-                  <td className="px-6 py-4 font-semibold text-slate-950">{formatCurrency(order.totalAmount)}</td>
-                  <td className="px-6 py-4">{order.items.length}</td>
-                  <td className="px-6 py-4">
-                    <StatusPill tone={orderStatusTone(order.status)}>{formatStatus(order.status)}</StatusPill>
-                  </td>
-                  <td className="px-6 py-4">{formatDateTime(order.createdAt)}</td>
-                  <td className="px-6 py-4 text-right">
-                    <Link to={`/orders/${order.id}`} className="font-semibold text-[#2558f5] underline decoration-slate-300 underline-offset-4">
-                      Review
-                    </Link>
-                  </td>
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 text-sm text-slate-500">
+            <div>{formatNumber(filteredOrders.length)} orders in view</div>
+            <div>{formatCompactCurrency(filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0))} total visible value</div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="resource-table">
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Customer</th>
+                  <th>Items</th>
+                  <th>Total</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th aria-label="Actions" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td>
+                      <div className="font-semibold text-slate-950">#{order.id}</div>
+                      <div className="mt-1 text-[12px] text-slate-500">{order.items.length} line item(s)</div>
+                    </td>
+                    <td>
+                      <div className="font-medium text-slate-950">{order.customerName}</div>
+                      <div className="mt-1 text-[12px] text-slate-500">{order.customerEmail}</div>
+                    </td>
+                    <td>{formatNumber(order.items.reduce((sum, item) => sum + item.quantity, 0))}</td>
+                    <td className="font-semibold text-slate-950">{formatCurrency(order.totalAmount)}</td>
+                    <td><StatusPill tone={orderStatusTone(order.status)}>{formatStatus(order.status)}</StatusPill></td>
+                    <td>{formatDateTime(order.createdAt)}</td>
+                    <td>
+                      <Link to={`/orders/${order.id}`} className="text-sm font-semibold text-slate-700 underline decoration-slate-300 underline-offset-4">Review</Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </AdminPanel>
+
+        <div className="space-y-5">
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Queue summary</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Operational mix</h2>
+            </div>
+            <div className="grid gap-4 px-5 py-5">
+              {statusTabs
+                .filter((tab) => tab.value !== 'ALL')
+                .map((tab) => {
+                  const count = orders.filter((order) => order.status === tab.value).length;
+                  const ratio = orders.length > 0 ? (count / orders.length) * 100 : 0;
+                  return (
+                    <div key={tab.value}>
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="font-semibold text-slate-950">{tab.label}</span>
+                        <span className="text-slate-500">{formatNumber(count)}</span>
+                      </div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-slate-900" style={{ width: `${Math.max(ratio, count > 0 ? 6 : 0)}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </AdminPanel>
+
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Exception watch</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Recent failures and cancellations</h2>
+            </div>
+            <div className="grid gap-3 px-5 py-5">
+              {recentExceptions.length === 0 ? (
+                <div className="text-sm text-slate-500">No exceptions in the current order history.</div>
+              ) : (
+                recentExceptions.map((order) => (
+                  <div key={order.id} className="backoffice-surface-muted px-4 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-slate-950">Order #{order.id}</div>
+                        <div className="mt-1 text-[12px] text-slate-500">{order.customerName}</div>
+                      </div>
+                      <StatusPill tone={orderStatusTone(order.status)}>{formatStatus(order.status)}</StatusPill>
+                    </div>
+                    <div className="mt-3 text-[12px] text-slate-500">{formatDateTime(order.createdAt)}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </AdminPanel>
         </div>
-      </AdminPanel>
+      </div>
     </div>
   );
 }
 
-interface MiniStatProps {
+interface MetricSummaryProps {
   label: string;
+  note: string;
   value: string;
 }
 
-function MiniStat({ label, value }: MiniStatProps) {
+function MetricSummary({ label, note, value }: MetricSummaryProps) {
   return (
-    <div className="dashboard-card rounded-[22px] px-5 py-5">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</div>
-      <div className="mt-3 text-3xl font-extrabold tracking-tight text-slate-950">{value}</div>
+    <div className="metric-tile">
+      <div className="metric-kicker">{label}</div>
+      <div className="metric-value">{value}</div>
+      <div className="metric-note">{note}</div>
     </div>
   );
 }

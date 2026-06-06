@@ -49,7 +49,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
         const nextSession: AdminSession = {
           email: DEFAULT_ADMIN_EMAIL,
-          displayName: 'OrderFlow Backoffice Admin',
+          displayName: 'Oflio Commerce Admin',
           signedInAt: new Date().toISOString(),
         };
 

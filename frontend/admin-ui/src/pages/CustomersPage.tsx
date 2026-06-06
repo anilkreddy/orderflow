@@ -5,12 +5,16 @@ import { SectionHeader } from '../components/SectionHeader';
 import { StatusPill } from '../components/StatusPill';
 import { orderApi, toApiMessage } from '../lib/api';
 import { buildCustomerSummaries } from '../lib/customers';
-import { customerTier, formatCurrency, formatDateTime, formatStatus, orderStatusTone, formatPercent, formatNumber } from '../lib/format';
+import { customerTier, formatCurrency, formatDateTime, formatNumber, formatPercent, formatStatus, orderStatusTone } from '../lib/format';
 import type { CustomerSummary, Order } from '../types';
+
+const customerTabs = ['ALL', 'Priority', 'Growth', 'New'] as const;
+type CustomerFilter = (typeof customerTabs)[number];
 
 export function CustomersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<CustomerFilter>('ALL');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,17 +33,18 @@ export function CustomersPage() {
   const customers = useMemo(() => buildCustomerSummaries(orders), [orders]);
   const filteredCustomers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return customers;
-    }
 
     return customers.filter((customer) => {
-      return (
+      const tier = customerTier(customer);
+      const matchesFilter = filter === 'ALL' || tier === filter;
+      const matchesQuery =
+        normalizedQuery.length === 0 ||
         customer.customerName.toLowerCase().includes(normalizedQuery) ||
-        customer.customerEmail.toLowerCase().includes(normalizedQuery)
-      );
+        customer.customerEmail.toLowerCase().includes(normalizedQuery);
+
+      return matchesFilter && matchesQuery;
     });
-  }, [customers, query]);
+  }, [customers, filter, query]);
 
   const repeatRate = useMemo(() => {
     if (customers.length === 0) {
@@ -48,8 +53,6 @@ export function CustomersPage() {
 
     return (customers.filter((customer) => customer.ordersCount > 1).length / customers.length) * 100;
   }, [customers]);
-
-  const topTierCount = useMemo(() => customers.filter((customer) => customerTier(customer) === 'Priority').length, [customers]);
   const averageCustomerValue = useMemo(() => {
     if (customers.length === 0) {
       return 0;
@@ -57,80 +60,83 @@ export function CustomersPage() {
 
     return customers.reduce((sum, customer) => sum + customer.lifetimeValue, 0) / customers.length;
   }, [customers]);
+  const topTierCustomers = useMemo(() => customers.filter((customer) => customerTier(customer) === 'Priority'), [customers]);
 
   return (
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Customers"
-        title="Customer lifetime value and purchase concentration"
-        description="Customer records are currently derived from orders, but the view is shaped like a real CRM dashboard so it can evolve cleanly once a dedicated customer service exists."
+        title="Review buyer value, recency, and support context"
+        description="Customer records are still derived from the order stream, but the workspace is laid out like a real CRM index so it can absorb first-party customer data later without redesigning the operating model."
       />
 
-      {error ? <div className="rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+      {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <MiniStat label="Customer accounts" value={formatNumber(customers.length)} />
-        <MiniStat label="Repeat purchase rate" value={formatPercent(repeatRate, 0)} />
-        <MiniStat label="Average customer value" value={formatCurrency(averageCustomerValue)} />
+      <div className="grid gap-4 xl:grid-cols-4">
+        <MetricSummary label="Customer records" value={formatNumber(customers.length)} note="Unique buyer emails" />
+        <MetricSummary label="Repeat rate" value={formatPercent(repeatRate, 0)} note="More than one order" />
+        <MetricSummary label="Average LTV" value={formatCurrency(averageCustomerValue)} note="Across all visible customers" />
+        <MetricSummary label="Priority accounts" value={formatNumber(topTierCustomers.length)} note="High-value or high-frequency buyers" />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.18fr_0.82fr]">
-        <AdminPanel className="overflow-hidden p-0">
-          <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 xl:flex-row xl:items-end xl:justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Customer directory</p>
-              <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">Search and review active buyers</h2>
-            </div>
-            <label className="w-full max-w-md text-sm font-medium text-slate-600">
-              Search customers
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <AdminPanel className="p-0 overflow-hidden">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-wrap gap-2">
+                {customerTabs.map((tab) => (
+                  <button key={tab} type="button" onClick={() => setFilter(tab)} className={`resource-tab ${filter === tab ? 'is-active' : ''}`}>
+                    {tab === 'ALL' ? 'All customers' : tab}
+                  </button>
+                ))}
+              </div>
               <input
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search by name or email"
-                className="mt-2 w-full rounded-full border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
+                placeholder="Search name or email"
+                className="backoffice-search min-w-[280px]"
               />
-            </label>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 text-sm text-slate-500">
+            <div>{formatNumber(filteredCustomers.length)} customers in view</div>
+            <div>{formatCurrency(filteredCustomers.reduce((sum, customer) => sum + customer.lifetimeValue, 0))} visible lifetime value</div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+            <table className="resource-table">
+              <thead>
                 <tr>
-                  <th className="px-6 py-4">Customer</th>
-                  <th className="px-6 py-4">Tier</th>
-                  <th className="px-6 py-4">Orders</th>
-                  <th className="px-6 py-4">Lifetime value</th>
-                  <th className="px-6 py-4">Last order</th>
-                  <th className="px-6 py-4" aria-label="Actions" />
+                  <th>Customer</th>
+                  <th>Tier</th>
+                  <th>Orders</th>
+                  <th>Lifetime value</th>
+                  <th>Latest order</th>
+                  <th aria-label="Actions" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
+              <tbody>
                 {filteredCustomers.map((customer) => {
                   const tier = customerTier(customer);
-                  const tierTone = tier === 'Priority' ? 'success' : tier === 'Growth' ? 'warning' : 'muted';
+                  const tone = tier === 'Priority' ? 'success' : tier === 'Growth' ? 'warning' : 'muted';
 
                   return (
-                    <tr key={customer.customerEmail} className="text-slate-600">
-                      <td className="px-6 py-4">
+                    <tr key={customer.customerEmail}>
+                      <td>
                         <div className="font-semibold text-slate-950">{customer.customerName}</div>
-                        <div className="mt-1 text-slate-500">{customer.customerEmail}</div>
+                        <div className="mt-1 text-[12px] text-slate-500">{customer.customerEmail}</div>
                       </td>
-                      <td className="px-6 py-4">
-                        <StatusPill tone={tierTone}>{tier}</StatusPill>
+                      <td><StatusPill tone={tone}>{tier}</StatusPill></td>
+                      <td>{formatNumber(customer.ordersCount)}</td>
+                      <td className="font-semibold text-slate-950">{formatCurrency(customer.lifetimeValue)}</td>
+                      <td>
+                        <div className="text-[12px] text-slate-500">{formatDateTime(customer.lastOrderAt)}</div>
+                        <div className="mt-2"><StatusPill tone={orderStatusTone(customer.lastOrderStatus)}>{formatStatus(customer.lastOrderStatus)}</StatusPill></div>
                       </td>
-                      <td className="px-6 py-4">{customer.ordersCount}</td>
-                      <td className="px-6 py-4 font-semibold text-slate-950">{formatCurrency(customer.lifetimeValue)}</td>
-                      <td className="px-6 py-4">
-                        <div>{formatDateTime(customer.lastOrderAt)}</div>
-                        <div className="mt-2">
-                          <StatusPill tone={orderStatusTone(customer.lastOrderStatus)}>{formatStatus(customer.lastOrderStatus)}</StatusPill>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link to={`/orders/${customer.latestOrderId}`} className="font-semibold text-[#2558f5] underline decoration-slate-300 underline-offset-4">
-                          View latest order
-                        </Link>
+                      <td>
+                        <Link to={`/orders/${customer.latestOrderId}`} className="text-sm font-semibold text-slate-700 underline decoration-slate-300 underline-offset-4">Latest order</Link>
                       </td>
                     </tr>
                   );
@@ -140,50 +146,77 @@ export function CustomersPage() {
           </div>
         </AdminPanel>
 
-        <AdminPanel className="p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">CRM highlights</p>
-          <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">Concentration summary</h2>
-          <div className="mt-6 grid gap-4">
-            <HighlightCard label="Priority customers" value={formatNumber(topTierCount)} note="High-value or high-frequency buyers" />
-            <HighlightCard label="Repeat customers" value={formatPercent(repeatRate, 0)} note="Customers with multiple orders" />
-            <HighlightCard label="Visible customers" value={formatNumber(filteredCustomers.length)} note="Matches in the current search view" />
-          </div>
+        <div className="space-y-5">
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Segments</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Customer tier split</h2>
+            </div>
+            <div className="grid gap-3 px-5 py-5">
+              {(['Priority', 'Growth', 'New'] as const).map((tier) => {
+                const count = customers.filter((customer) => customerTier(customer) === tier).length;
+                const ratio = customers.length > 0 ? (count / customers.length) * 100 : 0;
+                return (
+                  <div key={tier}>
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="font-semibold text-slate-950">{tier}</span>
+                      <span className="text-slate-500">{formatNumber(count)}</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-slate-900" style={{ width: `${Math.max(ratio, count > 0 ? 6 : 0)}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </AdminPanel>
 
-          <div className="mt-6 rounded-[22px] bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-600">
-            Once a customer service exists, this screen can absorb saved addresses, customer notes, support history, and segmentation without changing the overall dashboard structure.
-          </div>
-        </AdminPanel>
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">High-value buyers</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Priority accounts</h2>
+            </div>
+            <div className="grid gap-3 px-5 py-5">
+              {topTierCustomers.slice(0, 5).map((customer) => (
+                <PriorityCustomerCard key={customer.customerEmail} customer={customer} />
+              ))}
+            </div>
+          </AdminPanel>
+        </div>
       </div>
     </div>
   );
 }
 
-interface MiniStatProps {
-  label: string;
-  value: string;
-}
-
-function MiniStat({ label, value }: MiniStatProps) {
+function PriorityCustomerCard({ customer }: { customer: CustomerSummary }) {
   return (
-    <div className="dashboard-card rounded-[22px] px-5 py-5">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</div>
-      <div className="mt-3 text-3xl font-extrabold tracking-tight text-slate-950">{value}</div>
+    <div className="backoffice-surface-muted px-4 py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold text-slate-950">{customer.customerName}</div>
+          <div className="mt-1 text-[12px] text-slate-500">{customer.customerEmail}</div>
+        </div>
+        <div className="text-right">
+          <div className="font-semibold text-slate-950">{formatCurrency(customer.lifetimeValue)}</div>
+          <div className="mt-1 text-[12px] text-slate-500">{customer.ordersCount} order(s)</div>
+        </div>
+      </div>
     </div>
   );
 }
 
-interface HighlightCardProps {
+interface MetricSummaryProps {
   label: string;
   note: string;
   value: string;
 }
 
-function HighlightCard({ label, note, value }: HighlightCardProps) {
+function MetricSummary({ label, note, value }: MetricSummaryProps) {
   return (
-    <div className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</div>
-      <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-950">{value}</div>
-      <div className="mt-2 text-sm text-slate-500">{note}</div>
+    <div className="metric-tile">
+      <div className="metric-kicker">{label}</div>
+      <div className="metric-value">{value}</div>
+      <div className="metric-note">{note}</div>
     </div>
   );
 }

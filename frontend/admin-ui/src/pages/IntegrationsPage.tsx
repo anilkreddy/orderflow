@@ -3,18 +3,19 @@ import { AdminPanel } from '../components/AdminPanel';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusPill } from '../components/StatusPill';
 import { orderApi, productApi, toApiMessage } from '../lib/api';
+import { formatNumber } from '../lib/format';
 import type { Order, Product } from '../types';
 
 const services = [
   ['Customer portal', 'Public storefront, cart, checkout, and order lookup through the gateway', '5173'],
-  ['Admin UI', 'Restricted backoffice for customers, orders, products, and access control', '5174'],
-  ['API Gateway', 'Single entry point for product and order APIs', '8080'],
-  ['Product Service', 'Catalog CRUD, inventory storage, and reservation endpoint', '8081'],
-  ['Search Service', 'OpenSearch-backed product search, facets, tuning, and reindex operations', '8084'],
-  ['Order Service', 'Order persistence, product reservation, and Kafka event publication', '8082'],
-  ['Notification Service', 'Kafka consumer for order.created confirmation logs', '8083'],
-  ['OpenSearch', 'Catalog index, synonyms, boosts, popularity scoring, and aggregations', '9200'],
-  ['Kafka', 'Asynchronous event bus for order.created', '9092'],
+  ['Admin UI', 'Restricted backoffice for customers, orders, products, search, and access control', '5174'],
+  ['API Gateway', 'Single ingress path for product, order, and search APIs', '8080'],
+  ['Product Service', 'Catalog CRUD, category model, inventory storage, and reservation endpoint', '8081'],
+  ['Order Service', 'Order persistence, product reservation, and Kafka publication', '8082'],
+  ['Notification Service', 'Kafka consumer for order.created notification logs', '8083'],
+  ['Search Service', 'OpenSearch indexing, search preview, synonyms, and reindex operations', '8084'],
+  ['OpenSearch', 'Product index, facets, boosts, popularity scoring, and synonym config', '9200'],
+  ['Kafka', 'Asynchronous backbone for order and product events', '9092'],
 ];
 
 export function IntegrationsPage() {
@@ -37,12 +38,12 @@ export function IntegrationsPage() {
     void load();
   }, []);
 
-  const integrationFacts = useMemo(
+  const operationalFacts = useMemo(
     () => [
-      `${products.length} products are currently addressable through the gateway-backed product APIs.`,
-      `${orders.length} persisted orders are available for customer and backoffice views.`,
-      'Search-service owns product discovery, facet aggregation, synonym tuning, and full index rebuilds.',
-      'Authentication remains client-enforced in admin-ui until a server-side identity layer is introduced.',
+      `${formatNumber(products.length)} products are currently addressable through the product and search APIs.`,
+      `${formatNumber(orders.length)} persisted orders are feeding both customer and backoffice views.`,
+      'Search-service owns autocomplete, facets, ranking logic, runtime synonyms, and full reindex behavior.',
+      'Authentication remains client-enforced in admin-ui until the gateway adopts a server-side identity layer.',
     ],
     [orders.length, products.length],
   );
@@ -51,40 +52,53 @@ export function IntegrationsPage() {
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Integrations"
-        title="Understand the runtime surfaces behind the dashboard"
-        description="This screen keeps the frontend split honest: the customer portal and admin console share gateway-backed services but retain distinct concerns."
+        title="Understand the runtime surfaces behind commerce operations"
+        description="This page treats the local stack like a real environment: separate surfaces, explicit port ownership, and clarity about which service owns catalog, orders, search, and notification behavior."
       />
 
-      {error ? <div className="rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+      {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
-      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <AdminPanel className="p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Runtime surfaces</p>
-          <div className="mt-5 grid gap-4">
-            {services.map(([name, description, port]) => (
-              <div key={name} className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-950">{name}</div>
-                    <div className="mt-2 text-sm leading-7 text-slate-600">{description}</div>
-                  </div>
-                  <StatusPill tone="muted">{port}</StatusPill>
-                </div>
-              </div>
-            ))}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <AdminPanel className="p-0 overflow-hidden">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Service registry</div>
+            <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Running surfaces</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="resource-table">
+              <thead>
+                <tr>
+                  <th>Surface</th>
+                  <th>Responsibility</th>
+                  <th>Port</th>
+                </tr>
+              </thead>
+              <tbody>
+                {services.map(([name, description, port]) => (
+                  <tr key={name}>
+                    <td className="font-semibold text-slate-950">{name}</td>
+                    <td>{description}</td>
+                    <td><StatusPill tone="info">{port}</StatusPill></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </AdminPanel>
 
-        <AdminPanel className="p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Operational facts</p>
-          <div className="mt-5 grid gap-4">
-            {integrationFacts.map((item) => (
-              <div key={item} className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-600">
-                {item}
-              </div>
-            ))}
-          </div>
-        </AdminPanel>
+        <div className="space-y-5">
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Environment facts</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Data plane notes</h2>
+            </div>
+            <div className="grid gap-3 px-5 py-5 text-sm leading-6 text-slate-600">
+              {operationalFacts.map((fact) => (
+                <div key={fact} className="backoffice-surface-muted px-4 py-4">{fact}</div>
+              ))}
+            </div>
+          </AdminPanel>
+        </div>
       </div>
     </div>
   );

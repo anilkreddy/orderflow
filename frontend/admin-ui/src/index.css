@@ -1,24 +1,25 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Public+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "DM Sans", sans-serif;
-  --font-display: "Outfit", sans-serif;
+  --font-sans: "Public Sans", sans-serif;
+  --font-display: "IBM Plex Sans", sans-serif;
 }
 
 :root {
-  color: #111827;
+  color: #0f172a;
   font-family: var(--font-sans);
   background:
-    radial-gradient(circle at top left, rgba(37, 88, 245, 0.08), transparent 28%),
-    linear-gradient(180deg, #fafbff 0%, #f6f7fb 100%);
+    radial-gradient(circle at top left, rgba(15, 23, 42, 0.08), transparent 22%),
+    linear-gradient(180deg, #f3f4f6 0%, #eef2f7 100%);
+  color-scheme: light;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  color: #111827;
+  color: #0f172a;
   background: transparent;
 }
 
@@ -37,41 +38,232 @@ textarea {
   min-height: 100vh;
 }
 
-.dashboard-sidebar {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 255, 0.98));
-}
-
-.dashboard-search {
-  border: 1px solid rgba(226, 232, 240, 0.96);
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
-}
-
-.dashboard-card {
-  border: 1px solid rgba(226, 232, 240, 0.96);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.045);
-}
-
-.dashboard-action-button {
-  position: relative;
-  display: inline-flex;
-  height: 48px;
-  width: 48px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 16px;
-  border: 1px solid rgba(226, 232, 240, 0.96);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.035);
-}
-
 input::placeholder,
 textarea::placeholder {
   color: #94a3b8;
 }
 
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.55);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 a {
   color: inherit;
   text-decoration: none;
+}
+
+.backoffice-sidebar {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(17, 24, 39, 0.98));
+  border-right: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.backoffice-topbar {
+  background: rgba(243, 244, 246, 0.84);
+  backdrop-filter: blur(14px);
+}
+
+.backoffice-surface {
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 18px 36px rgba(15, 23, 42, 0.04);
+  border-radius: 18px;
+}
+
+.backoffice-surface-muted {
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  background: #f8fafc;
+  border-radius: 16px;
+}
+
+.backoffice-search,
+.backoffice-input,
+.backoffice-select,
+.backoffice-textarea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  background: #fff;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.backoffice-search,
+.backoffice-input,
+.backoffice-select {
+  min-height: 42px;
+  padding: 0 14px;
+}
+
+.backoffice-textarea {
+  min-height: 140px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.backoffice-search:focus,
+.backoffice-input:focus,
+.backoffice-select:focus,
+.backoffice-textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.backoffice-button-primary,
+.backoffice-button-secondary,
+.backoffice-button-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border-radius: 12px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
+
+.backoffice-button-primary {
+  background: #111827;
+  color: #fff;
+}
+
+.backoffice-button-primary:hover {
+  background: #1f2937;
+}
+
+.backoffice-button-secondary {
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  background: #fff;
+  color: #0f172a;
+}
+
+.backoffice-button-secondary:hover,
+.backoffice-button-ghost:hover {
+  background: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.95);
+}
+
+.backoffice-button-ghost {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #475569;
+}
+
+.backoffice-button-primary:disabled,
+.backoffice-button-secondary:disabled,
+.backoffice-button-ghost:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.resource-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.resource-tab:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.resource-tab.is-active {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.resource-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.resource-table thead {
+  background: #f8fafc;
+}
+
+.resource-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.resource-table td {
+  padding: 14px 16px;
+  vertical-align: top;
+  font-size: 13px;
+  color: #334155;
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.resource-table tbody tr:hover {
+  background: rgba(248, 250, 252, 0.85);
+}
+
+.metric-tile {
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 16px;
+}
+
+.metric-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.metric-value {
+  margin-top: 8px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #0f172a;
+}
+
+.metric-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.queue-dot {
+  display: inline-flex;
+  height: 8px;
+  width: 8px;
+  border-radius: 999px;
+}
+
+.login-shell {
+  background:
+    radial-gradient(circle at top left, rgba(15, 23, 42, 0.2), transparent 26%),
+    linear-gradient(135deg, #0f172a 0%, #111827 52%, #1e293b 100%);
 }

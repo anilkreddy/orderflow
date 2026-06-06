@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AdminPanel } from '../components/AdminPanel';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusPill } from '../components/StatusPill';
@@ -10,8 +10,8 @@ const sortOptions = [
   { value: 'featured', label: 'Featured relevance' },
   { value: 'popular', label: 'Popularity first' },
   { value: 'inventory', label: 'Inventory depth' },
-  { value: 'price-low', label: 'Price: low to high' },
-  { value: 'price-high', label: 'Price: high to low' },
+  { value: 'price-low', label: 'Price low to high' },
+  { value: 'price-high', label: 'Price high to low' },
   { value: 'newest', label: 'Newest updates' },
 ] as const;
 
@@ -63,11 +63,7 @@ export function SearchWorkbenchPage() {
     async function loadBootstrap() {
       setBootstrapping(true);
       try {
-        const [categoryData, tuningData, synonymData] = await Promise.all([
-          categoryApi.list(),
-          searchApi.tuning(),
-          searchApi.synonyms(),
-        ]);
+        const [categoryData, tuningData, synonymData] = await Promise.all([categoryApi.list(), searchApi.tuning(), searchApi.synonyms()]);
         setCategories(categoryData);
         setTuning(tuningData);
         setSynonyms(synonymData);
@@ -109,24 +105,7 @@ export function SearchWorkbenchPage() {
     void loadSearchPreview();
   }, [activeFilter, categoryCode, inStockOnly, previewNonce, priceBand, query, sort]);
 
-  const selectedCategoryName = useMemo(() => {
-    if (!categoryCode) {
-      return 'All categories';
-    }
-    return categories.find((category) => category.code === categoryCode)?.name ?? categoryCode;
-  }, [categories, categoryCode]);
-
-  const selectedPriceBandLabel = useMemo(() => {
-    if (!priceBand) {
-      return 'Any price';
-    }
-    return searchResponse.facets.priceBands.find((band) => band.code === priceBand)?.label ?? priceBand;
-  }, [priceBand, searchResponse.facets.priceBands]);
-
-  const filterSummary = useMemo(
-    () => [selectedCategoryName, selectedPriceBandLabel, activeFilter === 'ALL' ? 'All states' : activeFilter === 'ACTIVE' ? 'Active only' : 'Inactive only', inStockOnly ? 'In stock only' : 'Availability open'],
-    [activeFilter, inStockOnly, selectedCategoryName, selectedPriceBandLabel],
-  );
+  const synonymTerms = useMemo(() => tuning?.synonyms ?? [], [tuning]);
 
   function resetSynonymComposer() {
     setEditingSynonymId(null);
@@ -152,17 +131,7 @@ export function SearchWorkbenchPage() {
       const result = await searchApi.reindex();
       setReindexResult(result);
       setNotice(`Search index rebuilt with ${formatNumber(result.indexedCount)} products.`);
-      const refreshedSearch = await searchApi.search({
-        q: query.trim() || undefined,
-        categoryCode: categoryCode || undefined,
-        active: activeFilter === 'ALL' ? undefined : activeFilter === 'ACTIVE',
-        inStock: inStockOnly ? true : undefined,
-        priceBand: priceBand || undefined,
-        sort,
-        page: 0,
-        size: 12,
-      });
-      setSearchResponse(refreshedSearch);
+      setPreviewNonce((current) => current + 1);
       setError(null);
     } catch (reindexError) {
       setError(toApiMessage(reindexError, 'Unable to rebuild the search index'));
@@ -187,10 +156,10 @@ export function SearchWorkbenchPage() {
     try {
       if (editingSynonymId) {
         await searchApi.updateSynonym(editingSynonymId, { terms });
-        setNotice('Synonym group updated. Search preview now uses the new expansion rules.');
+        setNotice('Synonym group updated.');
       } else {
         await searchApi.createSynonym({ terms });
-        setNotice('Synonym group added. Search preview now uses the new expansion rules.');
+        setNotice('Synonym group added.');
       }
       await refreshSynonymsAndTuning();
       setPreviewNonce((current) => current + 1);
@@ -230,399 +199,275 @@ export function SearchWorkbenchPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        eyebrow="Search Ops"
-        title="Search operations and synonym library"
-        description="Use one operational surface to preview live product ranking, inspect facet coverage, rebuild the index, and manage synonym groups that influence relevance in real time."
+        eyebrow="Search operations"
+        title="Manage ranking inputs and preview shopper-facing search behavior"
+        description="This workspace combines live query validation, index controls, facet coverage, and editable synonym groups so merchandising and search teams can operate without editing config files."
         action={
-          <button
-            type="button"
-            onClick={() => void handleReindex()}
-            disabled={reindexing}
-            className="inline-flex items-center rounded-full bg-[#2558f5] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1947db] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {reindexing ? 'Rebuilding index...' : 'Rebuild index'}
+          <button type="button" onClick={() => void handleReindex()} disabled={reindexing} className="backoffice-button-primary">
+            {reindexing ? 'Reindexing...' : 'Rebuild index'}
           </button>
         }
       />
 
-      {error ? <div className="rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
-      {notice ? <div className="rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div> : null}
+      {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+      {notice ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div> : null}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_380px]">
-        <div className="space-y-5">
-          <AdminPanel className="overflow-hidden p-0">
-            <div className="border-b border-slate-200 px-5 py-4">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Search preview</p>
-                  <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-950">Live ranking and filter validation</h2>
-                  <p className="mt-2 text-sm text-slate-500">Preview the same OpenSearch response shape used by the storefront, including score, popularity, and facet counts.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <StatusPill tone={loadingPreview ? 'warning' : 'success'}>{loadingPreview ? 'Refreshing' : 'Live'}</StatusPill>
-                  <StatusPill tone="info">{formatNumber(searchResponse.total)} matches</StatusPill>
-                </div>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <AdminPanel className="p-0 overflow-hidden">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Preview query</div>
+                <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Live result validation</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <StatusPill tone={loadingPreview ? 'warning' : 'success'}>{loadingPreview ? 'Refreshing' : 'Live'}</StatusPill>
+                <StatusPill tone="info">{formatNumber(searchResponse.total)} matches</StatusPill>
               </div>
             </div>
+          </div>
 
-            <div className="grid gap-4 border-b border-slate-200 px-5 py-5 md:grid-cols-2 xl:grid-cols-3">
-              <label className="text-sm font-medium text-slate-600 xl:col-span-2">
-                Query
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search terms to validate relevance and synonym expansion"
-                  className="mt-2 w-full rounded-full border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
-                />
-              </label>
-              <label className="text-sm font-medium text-slate-600">
-                Sort order
-                <select
-                  value={sort}
-                  onChange={(event) => setSort(event.target.value as SortValue)}
-                  className="mt-2 w-full rounded-full border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
-                >
-                  {sortOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm font-medium text-slate-600">
-                Category
-                <select
-                  value={categoryCode}
-                  onChange={(event) => setCategoryCode(event.target.value)}
-                  className="mt-2 w-full rounded-full border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
-                >
-                  <option value="">All categories</option>
-                  {categories.map((category) => (
-                    <option key={category.code} value={category.code}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm font-medium text-slate-600">
-                Price band
-                <select
-                  value={priceBand}
-                  onChange={(event) => setPriceBand(event.target.value)}
-                  className="mt-2 w-full rounded-full border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
-                >
-                  <option value="">Any price</option>
-                  {searchResponse.facets.priceBands.map((band) => (
-                    <option key={band.code} value={band.code}>
-                      {band.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm font-medium text-slate-600">
-                Product state
-                <select
-                  value={activeFilter}
-                  onChange={(event) => setActiveFilter(event.target.value as ActiveFilter)}
-                  className="mt-2 w-full rounded-full border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
-                >
-                  <option value="ACTIVE">Active only</option>
-                  <option value="INACTIVE">Inactive only</option>
-                  <option value="ALL">All states</option>
-                </select>
-              </label>
-              <label className="inline-flex items-center gap-3 rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={inStockOnly}
-                  onChange={(event) => setInStockOnly(event.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-[#2558f5]"
-                />
-                In-stock results only
-              </label>
+          <div className="grid gap-4 border-b border-slate-200 px-5 py-5 md:grid-cols-2 xl:grid-cols-4">
+            <label className="text-sm font-medium text-slate-700 xl:col-span-2">
+              Query
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Validate product names, synonyms, and category phrases"
+                className="backoffice-search mt-2"
+              />
+            </label>
+            <label className="text-sm font-medium text-slate-700">
+              Category
+              <select value={categoryCode} onChange={(event) => setCategoryCode(event.target.value)} className="backoffice-select mt-2">
+                <option value="">All categories</option>
+                {categories.map((category) => (
+                  <option key={category.code} value={category.code}>{category.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-medium text-slate-700">
+              Sort
+              <select value={sort} onChange={(event) => setSort(event.target.value as SortValue)} className="backoffice-select mt-2">
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-medium text-slate-700">
+              Active filter
+              <select value={activeFilter} onChange={(event) => setActiveFilter(event.target.value as ActiveFilter)} className="backoffice-select mt-2">
+                <option value="ALL">All states</option>
+                <option value="ACTIVE">Active only</option>
+                <option value="INACTIVE">Inactive only</option>
+              </select>
+            </label>
+            <label className="text-sm font-medium text-slate-700">
+              Price band
+              <select value={priceBand} onChange={(event) => setPriceBand(event.target.value)} className="backoffice-select mt-2">
+                <option value="">Any price</option>
+                {searchResponse.facets.priceBands.map((band) => (
+                  <option key={band.code} value={band.code}>{band.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
+              <input type="checkbox" checked={inStockOnly} onChange={(event) => setInStockOnly(event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+              In-stock only
+            </label>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              <div className="font-semibold text-slate-950">Runtime synonyms</div>
+              <div className="mt-1">{formatNumber(synonyms.length)} groups loaded</div>
             </div>
+          </div>
 
-            <div className="flex flex-wrap gap-2 border-b border-slate-200 px-5 py-4">
-              {filterSummary.map((item) => (
-                <span key={item} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-                  {item}
-                </span>
-              ))}
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  <tr>
-                    <th className="px-5 py-4">Product</th>
-                    <th className="px-5 py-4">Score</th>
-                    <th className="px-5 py-4">Category</th>
-                    <th className="px-5 py-4">Inventory</th>
-                    <th className="px-5 py-4">Price</th>
+          <div className="overflow-x-auto">
+            <table className="resource-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Category</th>
+                  <th>Price</th>
+                  <th>Inventory</th>
+                  <th>Score</th>
+                  <th>Popularity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {searchResponse.items.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <div className="font-semibold text-slate-950">{item.name}</div>
+                      <div className="mt-1 text-[12px] text-slate-500">{item.description}</div>
+                    </td>
+                    <td>
+                      <div className="font-medium text-slate-950">{item.categoryName}</div>
+                      <div className="mt-1 text-[12px] text-slate-500">{item.categoryCode}</div>
+                    </td>
+                    <td className="font-semibold text-slate-950">{formatCurrency(item.price)}</td>
+                    <td>
+                      <StatusPill tone={item.inStock ? 'success' : 'warning'}>{item.stockQuantity} units</StatusPill>
+                    </td>
+                    <td>{item.score.toFixed(2)}</td>
+                    <td>{item.popularityScore.toFixed(1)}</td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
-                  {searchResponse.items.map((product) => (
-                    <tr key={product.id} className="text-slate-600">
-                      <td className="px-5 py-4">
-                        <div className="font-semibold text-slate-950">{product.name}</div>
-                        <div className="mt-1 max-w-xl text-slate-500">{product.description}</div>
-                        <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">SKU #{product.id}</div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="font-semibold text-slate-950">{product.score.toFixed(2)}</div>
-                        <div className="mt-1 text-xs text-slate-500">Popularity {product.popularityScore.toFixed(2)}</div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="font-medium text-slate-950">{product.categoryName}</div>
-                        <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{product.categoryCode}</div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          <StatusPill tone={product.inStock ? 'success' : 'warning'}>{product.inStock ? 'In stock' : 'Out of stock'}</StatusPill>
-                          <StatusPill tone={product.active ? 'success' : 'muted'}>{product.active ? 'Active' : 'Inactive'}</StatusPill>
-                        </div>
-                        <div className="mt-2 text-xs text-slate-500">{formatNumber(product.stockQuantity)} units on hand</div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="font-semibold text-slate-950">{formatCurrency(product.price)}</div>
-                        <div className="mt-1 text-xs text-slate-500">Updated {formatDateTime(product.updatedAt)}</div>
-                      </td>
-                    </tr>
-                  ))}
-                  {!loadingPreview && searchResponse.items.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-500">
-                        No products matched the current query and filter set.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </AdminPanel>
+
+        <div className="space-y-5">
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Index control</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Runtime health</h2>
+            </div>
+            <div className="grid gap-3 px-5 py-5">
+              <SummaryLine label="Bootstrap" value={bootstrapping ? 'Loading' : 'Ready'} />
+              <SummaryLine label="Indexed products" value={formatNumber(reindexResult?.indexedCount ?? searchResponse.total)} />
+              <SummaryLine label="Last rebuild" value={reindexResult ? formatDateTime(reindexResult.completedAt) : 'Not run this session'} />
+              <SummaryLine label="Synonym groups" value={formatNumber(synonyms.length)} />
             </div>
           </AdminPanel>
 
           <AdminPanel className="p-0 overflow-hidden">
             <div className="border-b border-slate-200 px-5 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Facet coverage</p>
-              <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-950">Category, price, and availability counts</h2>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Facet coverage</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Category and price distribution</h2>
             </div>
-            <div className="grid gap-0 md:grid-cols-3">
-              <FacetColumn title="Categories">
-                {searchResponse.facets.categories.map((facet) => (
-                  <FacetRow key={facet.categoryCode} label={facet.categoryName} value={formatNumber(facet.count)} selected={facet.selected} />
-                ))}
-                {searchResponse.facets.categories.length === 0 ? <EmptyFacetState message="No category buckets in the current query." /> : null}
-              </FacetColumn>
-              <FacetColumn title="Price bands">
-                {searchResponse.facets.priceBands.map((band) => (
-                  <FacetRow key={band.code} label={band.label} value={formatNumber(band.count)} selected={band.selected} />
-                ))}
-              </FacetColumn>
-              <FacetColumn title="Availability">
-                <FacetRow label="In stock" value={formatNumber(searchResponse.facets.availability.inStockCount)} selected={inStockOnly} />
-                <FacetRow label="Out of stock" value={formatNumber(searchResponse.facets.availability.outOfStockCount)} />
-                <FacetRow label="Active" value={formatNumber(searchResponse.facets.availability.activeCount)} selected={activeFilter === 'ACTIVE'} />
-                <FacetRow label="Inactive" value={formatNumber(searchResponse.facets.availability.inactiveCount)} selected={activeFilter === 'INACTIVE'} />
-              </FacetColumn>
-            </div>
-          </AdminPanel>
-        </div>
-
-        <div className="space-y-5">
-          <AdminPanel className="p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Index control</p>
-                <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-950">Runtime and ranking weights</h2>
-              </div>
-              <StatusPill tone={bootstrapping ? 'warning' : 'success'}>{bootstrapping ? 'Loading' : 'Ready'}</StatusPill>
-            </div>
-
-            {tuning ? (
-              <div className="mt-5 space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <MetricTile label="Synonym groups" value={formatNumber(synonyms.length)} />
-                  <MetricTile label="In-stock weight" value={tuning.inStockWeight.toFixed(2)} />
-                  <MetricTile label="Active weight" value={tuning.activeWeight.toFixed(2)} />
-                  <MetricTile label="Popularity factor" value={tuning.popularityFactor.toFixed(2)} />
-                </div>
-                <div className="grid gap-2">
-                  <WeightRow label="Exact name boost" value={tuning.boosts.exactName.toFixed(1)} />
-                  <WeightRow label="Phrase prefix boost" value={tuning.boosts.phrasePrefix.toFixed(1)} />
-                  <WeightRow label="Category boost" value={tuning.boosts.category.toFixed(1)} />
-                  <WeightRow label="Keyword boost" value={tuning.boosts.keywords.toFixed(1)} />
-                  <WeightRow label="Description boost" value={tuning.boosts.description.toFixed(1)} />
-                </div>
-              </div>
-            ) : (
-              <div className="mt-5 text-sm text-slate-500">Loading ranking weights...</div>
-            )}
-
-            <div className="mt-5 rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
-              Synonym updates apply to live search preview immediately. Full reindex is only needed when the product catalog itself needs to be rebuilt in OpenSearch.
-            </div>
-
-            {reindexResult ? (
-              <div className="mt-4 rounded-[18px] border border-slate-200 bg-white px-4 py-4 text-sm text-slate-600">
-                <div className="font-semibold text-slate-950">Last rebuild</div>
-                <div className="mt-2">{formatNumber(reindexResult.indexedCount)} products indexed on {formatDateTime(reindexResult.completedAt)}</div>
-              </div>
-            ) : null}
-          </AdminPanel>
-
-          <AdminPanel className="p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Synonym library</p>
-                <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-950">Manage live query expansions</h2>
-                <p className="mt-2 text-sm text-slate-500">Enter comma-separated terms. Each group should represent the same shopper intent.</p>
-              </div>
-              <StatusPill tone="info">{formatNumber(synonyms.length)} groups</StatusPill>
-            </div>
-
-            <div className="mt-5 rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4">
-              <label className="text-sm font-medium text-slate-700">
-                {editingSynonymId ? 'Edit synonym group' : 'New synonym group'}
-                <textarea
-                  value={synonymDraft}
-                  onChange={(event) => setSynonymDraft(event.target.value)}
-                  rows={4}
-                  placeholder="phone, smartphone, mobile"
-                  className="mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-[#2558f5]"
-                />
-              </label>
-              <div className="mt-3 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => void handleSynonymSubmit()}
-                  disabled={savingSynonym}
-                  className="inline-flex items-center rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {savingSynonym ? 'Saving...' : editingSynonymId ? 'Save group' : 'Add group'}
-                </button>
-                {editingSynonymId ? (
-                  <button
-                    type="button"
-                    onClick={resetSynonymComposer}
-                    className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {synonyms.map((group) => (
-                <div key={group.id} className="rounded-[20px] border border-slate-200 bg-white px-4 py-4">
-                  <div className="flex items-start justify-between gap-4">
+            <div className="grid gap-3 px-5 py-5">
+              {searchResponse.facets.categories.slice(0, 5).map((facet) => (
+                <div key={facet.categoryCode} className="backoffice-surface-muted px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold text-slate-950">{group.primaryTerm}</div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {group.terms.map((term) => (
-                          <span key={term} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                            {term}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="mt-3 text-xs text-slate-500">Updated {formatDateTime(group.updatedAt)}</div>
+                      <div className="font-semibold text-slate-950">{facet.categoryName}</div>
+                      <div className="mt-1 text-[12px] text-slate-500">{facet.categoryCode}</div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => startEditingSynonym(group)}
-                        className="text-sm font-semibold text-[#2558f5] transition hover:text-[#1947db]"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteSynonym(group)}
-                        disabled={deletingSynonymId === group.id}
-                        className="text-sm font-semibold text-rose-600 transition hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {deletingSynonymId === group.id ? 'Deleting...' : 'Delete'}
-                      </button>
-                    </div>
+                    <StatusPill tone="info">{formatNumber(facet.count)}</StatusPill>
                   </div>
                 </div>
               ))}
-              {synonyms.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                  No synonym groups exist yet.
+              {searchResponse.facets.priceBands.map((band) => (
+                <div key={band.code} className="flex items-center justify-between gap-3 text-sm text-slate-600">
+                  <span>{band.label}</span>
+                  <span className="font-semibold text-slate-950">{formatNumber(band.count)}</span>
                 </div>
-              ) : null}
+              ))}
+            </div>
+          </AdminPanel>
+
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Relevance profile</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Current boost weights</h2>
+            </div>
+            <div className="grid gap-3 px-5 py-5 text-sm text-slate-600">
+              {tuning ? (
+                <>
+                  <SummaryLine label="Exact name" value={tuning.boosts.exactName.toFixed(1)} />
+                  <SummaryLine label="Phrase prefix" value={tuning.boosts.phrasePrefix.toFixed(1)} />
+                  <SummaryLine label="Category boost" value={tuning.boosts.category.toFixed(1)} />
+                  <SummaryLine label="Description boost" value={tuning.boosts.description.toFixed(1)} />
+                  <SummaryLine label="Popularity factor" value={tuning.popularityFactor.toFixed(1)} />
+                </>
+              ) : (
+                <div>Loading tuning profile...</div>
+              )}
+              <div className="backoffice-surface-muted px-4 py-4 text-[12px] leading-6 text-slate-500">
+                {synonymTerms.length > 0 ? synonymTerms.join(', ') : 'No seed synonym terms are currently loaded.'}
+              </div>
             </div>
           </AdminPanel>
         </div>
       </div>
+
+      <AdminPanel className="p-0 overflow-hidden">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Synonym library</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Editable runtime synonym groups</h2>
+            </div>
+            <div className="text-sm text-slate-500">Changes are applied to live query expansion without editing backend config files.</div>
+          </div>
+        </div>
+
+        <div className="grid gap-5 border-b border-slate-200 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div>
+            <div className="text-sm font-semibold text-slate-950">Existing groups</div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="resource-table">
+                <thead>
+                  <tr>
+                    <th>Primary term</th>
+                    <th>Terms</th>
+                    <th>Updated</th>
+                    <th aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {synonyms.map((group) => (
+                    <tr key={group.id}>
+                      <td className="font-semibold text-slate-950">{group.primaryTerm}</td>
+                      <td>
+                        <div className="flex flex-wrap gap-2">
+                          {group.terms.map((term) => (
+                            <span key={term} className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">{term}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td>{formatDateTime(group.updatedAt)}</td>
+                      <td>
+                        <div className="flex justify-end gap-3">
+                          <button type="button" onClick={() => startEditingSynonym(group)} className="text-sm font-semibold text-slate-700 underline decoration-slate-300 underline-offset-4">Edit</button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteSynonym(group)}
+                            disabled={deletingSynonymId === group.id}
+                            className="text-sm font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {deletingSynonymId === group.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <div className="text-sm font-semibold text-slate-950">{editingSynonymId ? 'Edit synonym group' : 'Create synonym group'}</div>
+              <div className="mt-1 text-sm text-slate-500">Provide at least two comma-separated terms. The first term becomes the primary label in backoffice.</div>
+            </div>
+            <label className="text-sm font-medium text-slate-700">
+              Terms
+              <textarea value={synonymDraft} onChange={(event) => setSynonymDraft(event.target.value)} rows={7} className="backoffice-textarea mt-2" placeholder="phone, mobile, smartphone" />
+            </label>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => void handleSynonymSubmit()} disabled={savingSynonym} className="backoffice-button-primary flex-1">
+                {savingSynonym ? 'Saving...' : editingSynonymId ? 'Update group' : 'Add group'}
+              </button>
+              {editingSynonymId ? (
+                <button type="button" onClick={resetSynonymComposer} className="backoffice-button-secondary">Cancel</button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </AdminPanel>
     </div>
   );
 }
 
-interface MetricTileProps {
-  label: string;
-  value: string;
-}
-
-function MetricTile({ label, value }: MetricTileProps) {
+function SummaryLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</div>
-      <div className="mt-2 text-xl font-bold tracking-tight text-slate-950">{value}</div>
-    </div>
-  );
-}
-
-interface WeightRowProps {
-  label: string;
-  value: string;
-}
-
-function WeightRow({ label, value }: WeightRowProps) {
-  return (
-    <div className="flex items-center justify-between rounded-[16px] border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-600">
-      <span>{label}</span>
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="text-slate-500">{label}</span>
       <span className="font-semibold text-slate-950">{value}</span>
     </div>
   );
-}
-
-interface FacetColumnProps {
-  children: ReactNode;
-  title: string;
-}
-
-function FacetColumn({ children, title }: FacetColumnProps) {
-  return (
-    <div className="border-t border-slate-200 md:border-t-0 md:border-r last:border-r-0">
-      <div className="border-b border-slate-200 px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">{title}</div>
-      <div className="space-y-0">{children}</div>
-    </div>
-  );
-}
-
-interface FacetRowProps {
-  label: string;
-  selected?: boolean;
-  value: string;
-}
-
-function FacetRow({ label, selected = false, value }: FacetRowProps) {
-  return (
-    <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 text-sm last:border-b-0">
-      <span className={selected ? 'font-semibold text-slate-950' : 'text-slate-600'}>{label}</span>
-      <span className={selected ? 'font-semibold text-[#2558f5]' : 'text-slate-500'}>{value}</span>
-    </div>
-  );
-}
-
-interface EmptyFacetStateProps {
-  message: string;
-}
-
-function EmptyFacetState({ message }: EmptyFacetStateProps) {
-  return <div className="px-5 py-6 text-sm text-slate-500">{message}</div>;
 }

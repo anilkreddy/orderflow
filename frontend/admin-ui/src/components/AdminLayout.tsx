@@ -1,38 +1,81 @@
-import { useMemo, useState, type ComponentType, type SVGProps } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState, type ComponentType, type SVGProps } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { formatDateTime } from '../lib/format';
 
 interface NavigationItem {
-  badge?: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   label: string;
   note: string;
+  section: 'Commerce' | 'Operations' | 'System';
   to: string;
 }
 
 const navigation: NavigationItem[] = [
-  { to: '/dashboard', label: 'Dashboard', note: 'Revenue and performance', icon: DashboardIcon },
-  { to: '/search', label: 'Search', note: 'Preview and relevance', icon: SearchIcon },
-  { to: '/orders', label: 'Orders', note: 'Queue and fulfillment', icon: OrderIcon },
-  { to: '/products', label: 'Products', note: 'Catalog and inventory', icon: ProductIcon },
-  { to: '/customers', label: 'Customers', note: 'Profiles and lifetime value', icon: CustomersIcon },
-  { to: '/access-control', label: 'Access Control', note: 'Credentials and roles', icon: ShieldIcon },
-  { to: '/integrations', label: 'Integrations', note: 'Services and runtime', icon: LinkIcon, badge: 'LIVE' },
+  { to: '/dashboard', label: 'Overview', note: 'Trading, demand, and workload', icon: DashboardIcon, section: 'Commerce' },
+  { to: '/orders', label: 'Orders', note: 'Queue, exceptions, and reviews', icon: OrderIcon, section: 'Commerce' },
+  { to: '/customers', label: 'Customers', note: 'Buyer profiles and value', icon: CustomersIcon, section: 'Commerce' },
+  { to: '/products', label: 'Products', note: 'Catalog, price, and stock', icon: ProductIcon, section: 'Commerce' },
+  { to: '/search', label: 'Search', note: 'Ranking, facets, and synonyms', icon: SearchIcon, section: 'Operations' },
+  { to: '/integrations', label: 'Integrations', note: 'Runtime surfaces and services', icon: LinkIcon, section: 'Operations' },
+  { to: '/access-control', label: 'Access', note: 'Credentials, roles, and policy', icon: ShieldIcon, section: 'System' },
 ];
 
-const quickActions = [
-  { label: 'Alerts', icon: BellIcon, tone: 'bg-amber-400' },
-  { label: 'Messages', icon: MessageIcon, tone: 'bg-emerald-500' },
-  { label: 'Settings', icon: SettingsIcon, tone: 'bg-slate-300' },
-];
+const sections: Array<NavigationItem['section']> = ['Commerce', 'Operations', 'System'];
+
+function resolvePageTitle(pathname: string) {
+  if (pathname === '/dashboard' || pathname === '/') {
+    return 'Overview';
+  }
+
+  if (pathname.startsWith('/orders/')) {
+    return 'Order Review';
+  }
+
+  if (pathname === '/orders') {
+    return 'Orders';
+  }
+
+  if (pathname === '/customers') {
+    return 'Customers';
+  }
+
+  if (pathname === '/products/new') {
+    return 'Create Product';
+  }
+
+  if (pathname.startsWith('/products/') && pathname.endsWith('/edit')) {
+    return 'Edit Product';
+  }
+
+  if (pathname === '/products') {
+    return 'Products';
+  }
+
+  if (pathname === '/search') {
+    return 'Search Operations';
+  }
+
+  if (pathname === '/integrations') {
+    return 'Integrations';
+  }
+
+  if (pathname === '/access-control') {
+    return 'Access Control';
+  }
+
+  return 'Admin';
+}
 
 export function AdminLayout() {
+  const location = useLocation();
   const { session, signOut } = useAuth();
   const [search, setSearch] = useState('');
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
   const initials = useMemo(() => {
-    const source = session?.displayName ?? 'Admin User';
+    const source = session?.displayName ?? 'Backoffice User';
     return source
       .split(' ')
       .slice(0, 2)
@@ -40,132 +83,226 @@ export function AdminLayout() {
       .join('');
   }, [session?.displayName]);
 
+  const currentView = useMemo(() => {
+    return navigation.find((item) => location.pathname.startsWith(item.to)) ?? navigation[0];
+  }, [location.pathname]);
+
+  useEffect(() => {
+    document.title = `${resolvePageTitle(location.pathname)} | Oflio Commerce Admin`;
+  }, [location.pathname]);
+
+  useEffect(() => {
+    setProfileOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!profileMenuRef.current?.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setProfileOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
+
   return (
-    <div className="min-h-screen bg-[#f7f8fc] text-slate-900">
-      <div className="mx-auto flex max-w-[1760px]">
-        <aside className="dashboard-sidebar sticky top-0 hidden h-screen w-[272px] shrink-0 flex-col border-r border-slate-200 bg-white px-6 py-6 xl:flex">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="block h-3.5 w-9 rounded-full bg-slate-900" />
-              <span className="block h-3.5 w-3.5 rounded-full bg-slate-400" />
-            </div>
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-500">OrderFlow</div>
-              <div className="mt-0.5 text-[1.7rem] font-extrabold tracking-tight text-slate-950">Backoffice</div>
+    <div className="min-h-screen bg-transparent text-slate-900">
+      <div className="grid min-h-screen xl:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="backoffice-sidebar hidden h-screen flex-col px-5 py-5 text-slate-100 xl:flex xl:sticky xl:top-0">
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-sm font-bold text-slate-950">OF</div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Store console</div>
+              <div className="truncate font-display text-xl font-semibold text-white">Oflio Commerce</div>
             </div>
           </div>
 
-          <div className="mt-10">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.34em] text-slate-400">Overview</div>
-            <nav className="mt-4 grid gap-1.5">
-              {navigation.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) =>
-                      [
-                        'group flex items-center gap-3 rounded-[16px] px-3.5 py-2.5 transition',
-                        isActive
-                          ? 'bg-[#edf3ff] text-[#2558f5] shadow-[inset_0_0_0_1px_rgba(37,88,245,0.08)]'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950',
-                      ].join(' ')
-                    }
-                  >
-                    <span className="flex h-9 w-9 items-center justify-center rounded-[13px] bg-white shadow-[0_8px_18px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/70 group-hover:ring-slate-300">
-                      <Icon className="h-4.5 w-4.5" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2 text-[13px] font-semibold">
-                        {item.label}
-                        {item.badge ? <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">{item.badge}</span> : null}
-                      </span>
-                      <span className="mt-0.5 block text-[11px] text-slate-400">{item.note}</span>
-                    </span>
-                  </NavLink>
-                );
-              })}
-            </nav>
-          </div>
-
-          <div className="mt-auto rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4 shadow-[0_14px_30px_rgba(15,23,42,0.04)]">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Session</div>
-            <div className="mt-3 text-[13px] text-slate-600">
-              <div className="font-semibold text-slate-950">{session?.displayName}</div>
-              <div className="mt-1">{session?.email}</div>
-              {session ? <div className="mt-2 text-[11px] text-slate-500">Signed in {formatDateTime(session.signedInAt)}</div> : null}
-            </div>
-            <div className="mt-4 grid gap-2.5">
-              <button
-                type="button"
-                onClick={signOut}
-                className="inline-flex items-center justify-center rounded-full bg-slate-950 px-4 py-2.5 text-[13px] font-semibold text-white transition hover:bg-slate-800"
-              >
-                Sign out
-              </button>
-              <a
-                href="http://localhost:5173"
-                className="inline-flex items-center justify-between rounded-full border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-100"
-              >
-                Open storefront
-                <span className="text-slate-400">5173</span>
-              </a>
-            </div>
+          <div className="mt-8 flex-1 space-y-7 overflow-y-auto pr-1">
+            {sections.map((section) => (
+              <div key={section}>
+                <div className="px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{section}</div>
+                <nav className="mt-2.5 grid gap-1">
+                  {navigation
+                    .filter((item) => item.section === section)
+                    .map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <NavLink
+                          key={item.to}
+                          to={item.to}
+                          className={({ isActive }) =>
+                            [
+                              'group relative flex items-start gap-3 rounded-2xl px-3 py-3 transition',
+                              isActive
+                                ? 'bg-white text-slate-950 shadow-[0_10px_24px_rgba(15,23,42,0.18)] before:absolute before:bottom-3 before:left-0 before:top-3 before:w-1 before:rounded-full before:bg-slate-950'
+                                : 'text-slate-300 hover:bg-white/6 hover:text-white',
+                            ].join(' ')
+                          }
+                        >
+                          {({ isActive }) => (
+                            <>
+                              <span
+                                className={[
+                                  'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition',
+                                  isActive
+                                    ? 'border-slate-200 bg-slate-950 text-white shadow-sm'
+                                    : 'border-current/10 bg-current/5 text-current',
+                                ].join(' ')}
+                              >
+                                <Icon className="h-4 w-4" />
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span
+                                  className={[
+                                    'block text-[13px] font-semibold',
+                                    isActive ? 'text-slate-950' : 'text-slate-100 group-hover:text-white',
+                                  ].join(' ')}
+                                >
+                                  {item.label}
+                                </span>
+                                <span
+                                  className={[
+                                    'mt-1 block text-[11px]',
+                                    isActive ? 'text-slate-500' : 'text-slate-400 group-hover:text-slate-300',
+                                  ].join(' ')}
+                                >
+                                  {item.note}
+                                </span>
+                              </span>
+                            </>
+                          )}
+                        </NavLink>
+                      );
+                    })}
+                </nav>
+              </div>
+            ))}
           </div>
         </aside>
 
-        <div className="min-w-0 flex-1 px-4 py-4 sm:px-5 xl:px-8 xl:py-6">
-          <header className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <form className="dashboard-search flex w-full max-w-[720px] items-center gap-3 rounded-[18px] bg-white px-4 py-3">
-              <SearchIcon className="h-5 w-5 text-slate-400" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="w-full bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400"
-                placeholder="Search orders, products, customers, or actions"
-              />
-              <span className="hidden rounded-xl bg-[#2558f5] px-3 py-1.5 text-[13px] font-semibold text-white lg:inline-flex">⌘ K</span>
-            </form>
+        <div className="min-w-0">
+          <header className="backoffice-topbar sticky top-0 z-30 border-b border-slate-200/80">
+            <div className="px-4 py-4 sm:px-6 xl:px-8">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex min-w-0 flex-1 items-center gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-sm font-bold text-white xl:hidden">OF</div>
+                  <label className="relative block w-full max-w-[760px]">
+                    <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      className="backoffice-search pl-10 pr-24"
+                      placeholder="Search orders, products, customers, or jump to a workspace"
+                    />
+                    <span className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-500 lg:inline-flex">
+                      ⌘ K
+                    </span>
+                  </label>
+                </div>
 
-            <div className="flex items-center gap-3 self-end xl:self-auto">
-              {quickActions.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button key={item.label} type="button" className="dashboard-action-button relative">
-                    <Icon className="h-4.5 w-4.5 text-slate-700" />
-                    <span className={`absolute right-2.5 top-2.5 h-2 w-2 rounded-full ${item.tone}`} />
-                  </button>
-                );
-              })}
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f59e0b,#2563eb)] text-sm font-bold text-white shadow-[0_14px_28px_rgba(37,88,245,0.22)]">
-                {initials}
+                <div className="flex items-start gap-2 self-end xl:self-auto">
+                  <button type="button" className="backoffice-button-secondary">Store health</button>
+                  <button type="button" className="backoffice-button-secondary">Tasks</button>
+                  <div
+                    ref={profileMenuRef}
+                    className="relative"
+                    onMouseEnter={() => setProfileOpen(true)}
+                    onMouseLeave={() => setProfileOpen(false)}
+                  >
+                    <button
+                      type="button"
+                      aria-expanded={profileOpen}
+                      aria-haspopup="menu"
+                      onClick={() => setProfileOpen((current) => !current)}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-[11px] font-bold text-slate-950 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      {initials}
+                    </button>
+
+                    {profileOpen ? (
+                      <div className="absolute right-0 top-full z-40 mt-2 w-[280px] rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_40px_rgba(15,23,42,0.14)]">
+                        <div className="rounded-xl bg-slate-50 px-3 py-3">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[11px] font-bold text-white">{initials}</div>
+                            <div className="min-w-0">
+                              <div className="truncate text-[13px] font-semibold text-slate-950">{session?.displayName}</div>
+                              <div className="truncate text-[12px] text-slate-500">{session?.email}</div>
+                              {session ? <div className="mt-1 text-[11px] text-slate-400">Signed in {formatDateTime(session.signedInAt)}</div> : null}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-2 grid">
+                          <Link
+                            to="/access-control"
+                            className="rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950"
+                          >
+                            Profile & access
+                          </Link>
+                          <a
+                            href="http://localhost:5173"
+                            className="rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950"
+                          >
+                            Open storefront
+                          </a>
+                          <button
+                            type="button"
+                            onClick={signOut}
+                            className="rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-rose-600 transition hover:bg-rose-50 hover:text-rose-700"
+                          >
+                            Sign out
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Current workspace</div>
+                  <div className="mt-1 flex items-center gap-2 text-sm text-slate-700">
+                    <span className="font-semibold text-slate-950">{currentView.label}</span>
+                    <span className="text-slate-300">/</span>
+                    <span>{currentView.note}</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 xl:hidden">
+                  {navigation.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        className={({ isActive }) => [
+                          'inline-flex items-center gap-2 rounded-full px-3 py-2 text-[12px] font-semibold transition',
+                          isActive ? 'bg-slate-950 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200',
+                        ].join(' ')}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        {item.label}
+                      </NavLink>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </header>
 
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 xl:hidden">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    [
-                      'flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-semibold transition',
-                      isActive ? 'bg-[#2558f5] text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200',
-                    ].join(' ')
-                  }
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {item.label}
-                </NavLink>
-              );
-            })}
-          </div>
-
-          <main className="mt-6">
+          <main className="px-4 py-5 sm:px-6 xl:px-8 xl:py-7">
             <Outlet />
           </main>
         </div>
@@ -175,13 +312,13 @@ export function AdminLayout() {
 }
 
 function IconBase(props: SVGProps<SVGSVGElement>) {
-  return <svg fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" viewBox="0 0 24 24" {...props} />;
+  return <svg fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24" {...props} />;
 }
 
 function DashboardIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
-      <path d="M4 12h6V4H4zm10 8h6v-6h-6zM4 20h6v-4H4zm10-10h6V4h-6z" />
+      <path d="M4 12h7V4H4zm9 8h7v-5h-7zM4 20h7v-5H4zm9-9h7V4h-7z" />
     </IconBase>
   );
 }
@@ -189,9 +326,8 @@ function DashboardIcon(props: SVGProps<SVGSVGElement>) {
 function OrderIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
-      <path d="M6 6h15l-1.2 7H8.2z" />
-      <path d="M6 6 5 3H3" />
-      <path d="M9 20a1 1 0 1 0 0 .01M18 20a1 1 0 1 0 0 .01" />
+      <path d="M4 6h2l1.2 7.2A2 2 0 0 0 9.2 15H18a2 2 0 0 0 2-1.6L21 8H8" />
+      <path d="M9 19a1 1 0 1 0 0 .01M18 19a1 1 0 1 0 0 .01" />
     </IconBase>
   );
 }
@@ -199,9 +335,9 @@ function OrderIcon(props: SVGProps<SVGSVGElement>) {
 function ProductIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
-      <path d="m3 7 9-4 9 4-9 4z" />
-      <path d="M3 7v10l9 4 9-4V7" />
-      <path d="M12 11v10" />
+      <path d="m12 3 8 4.5-8 4.5-8-4.5z" />
+      <path d="M4 8v8l8 5 8-5V8" />
+      <path d="M12 12v9" />
     </IconBase>
   );
 }
@@ -209,9 +345,10 @@ function ProductIcon(props: SVGProps<SVGSVGElement>) {
 function CustomersIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
-      <path d="M16 19a4 4 0 0 0-8 0" />
-      <circle cx="12" cy="10" r="3" />
-      <path d="M20 19a4 4 0 0 0-3-3.87M4 19a4 4 0 0 1 3-3.87" />
+      <circle cx="9" cy="9" r="3" />
+      <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
+      <path d="M17 11a3 3 0 1 0-2.2-5" />
+      <path d="M20.5 19a5.5 5.5 0 0 0-4.5-5.4" />
     </IconBase>
   );
 }
@@ -219,8 +356,8 @@ function CustomersIcon(props: SVGProps<SVGSVGElement>) {
 function ShieldIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
-      <path d="M12 3 5 6v5c0 5 3.5 8 7 10 3.5-2 7-5 7-10V6z" />
-      <path d="m9 12 2 2 4-4" />
+      <path d="M12 3 5.5 6v5.5c0 4.8 2.9 7.8 6.5 9.5 3.6-1.7 6.5-4.7 6.5-9.5V6z" />
+      <path d="m9.5 12 1.7 1.7 3.3-3.7" />
     </IconBase>
   );
 }
@@ -228,8 +365,8 @@ function ShieldIcon(props: SVGProps<SVGSVGElement>) {
 function LinkIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
-      <path d="M10 14a5 5 0 0 1 0-7l1.5-1.5a5 5 0 1 1 7 7L17 14" />
-      <path d="M14 10a5 5 0 0 1 0 7L12.5 18.5a5 5 0 0 1-7-7L7 10" />
+      <path d="M10 13a4 4 0 0 1 0-5.7l1.8-1.8a4 4 0 1 1 5.7 5.7L16 13" />
+      <path d="M14 11a4 4 0 0 1 0 5.7l-1.8 1.8a4 4 0 1 1-5.7-5.7L8 11" />
     </IconBase>
   );
 }
@@ -237,35 +374,8 @@ function LinkIcon(props: SVGProps<SVGSVGElement>) {
 function SearchIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
-      <circle cx="11" cy="11" r="7" />
+      <circle cx="11" cy="11" r="6.5" />
       <path d="m20 20-3.5-3.5" />
-    </IconBase>
-  );
-}
-
-function BellIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <IconBase {...props}>
-      <path d="M15 17H5.5A1.5 1.5 0 0 1 4 15.5V15l1.5-1.5V10a5.5 5.5 0 0 1 11 0v3.5L18 15v.5A1.5 1.5 0 0 1 16.5 17H15" />
-      <path d="M10 19a2 2 0 0 0 4 0" />
-    </IconBase>
-  );
-}
-
-function MessageIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <IconBase {...props}>
-      <path d="M5 6h14v9H8l-3 3z" />
-      <path d="M8 10h8M8 13h5" />
-    </IconBase>
-  );
-}
-
-function SettingsIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <IconBase {...props}>
-      <path d="M12 3v2.5M12 18.5V21M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M3 12h2.5M18.5 12H21M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" />
-      <circle cx="12" cy="12" r="3.5" />
     </IconBase>
   );
 }

@@ -49,6 +49,14 @@ export function ProductDetailsPage() {
     void loadProduct();
   }, [id]);
 
+  useEffect(() => {
+    if (!product) {
+      return;
+    }
+
+    document.title = `${product.name} | Oflio Commerce`;
+  }, [product]);
+
   if (loading) {
     return (
       <div className="mx-auto max-w-[1480px] px-4 py-10 md:px-6">
@@ -124,7 +132,7 @@ export function ProductDetailsPage() {
             </div>
 
             <div className="mt-6 text-5xl font-extrabold tracking-tight text-slate-950">{formatCurrency(product.price)}</div>
-            <div className="mt-2 text-sm text-slate-500">Active product available through the live OrderFlow checkout path.</div>
+            <div className="mt-2 text-sm text-slate-500">Active product available through the live Oflio Commerce checkout path.</div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
               <BuyboxPill label="Delivery" value={product.stockQuantity >= 20 ? 'Fast dispatch' : 'Standard dispatch'} />

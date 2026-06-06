@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from '
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AdminPanel } from '../components/AdminPanel';
 import { SectionHeader } from '../components/SectionHeader';
+import { StatusPill } from '../components/StatusPill';
 import { categoryApi, productApi, toApiMessage } from '../lib/api';
 import type { Category, ProductPayload } from '../types';
 
@@ -42,10 +43,7 @@ export function ProductFormPage() {
             active: product.active,
           });
         } else {
-          setForm((current) => ({
-            ...current,
-            categoryCode: current.categoryCode || activeCategories[0]?.code || '',
-          }));
+          setForm((current) => ({ ...current, categoryCode: current.categoryCode || activeCategories[0]?.code || '' }));
         }
         setError(null);
       } catch (loadError) {
@@ -66,11 +64,7 @@ export function ProductFormPage() {
   function handleNumberChange(event: ChangeEvent<HTMLInputElement>) {
     const { name, value } = event.target;
     const parsedValue = name === 'stockQuantity' ? Number.parseInt(value || '0', 10) : Number.parseFloat(value || '0');
-
-    setForm((current) => ({
-      ...current,
-      [name]: Number.isFinite(parsedValue) ? Math.max(0, parsedValue) : 0,
-    }));
+    setForm((current) => ({ ...current, [name]: Number.isFinite(parsedValue) ? Math.max(0, parsedValue) : 0 }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -95,7 +89,6 @@ export function ProductFormPage() {
       } else {
         await productApi.create(form);
       }
-
       navigate('/products');
     } catch (submitError) {
       setError(toApiMessage(submitError, 'Unable to save product'));
@@ -105,134 +98,114 @@ export function ProductFormPage() {
   }
 
   if (loading) {
-    return <div className="dashboard-card rounded-[24px] px-5 py-5 text-sm text-slate-600">Loading product...</div>;
+    return <div className="backoffice-surface px-5 py-5 text-sm text-slate-600">Loading product editor...</div>;
   }
 
   return (
     <div className="space-y-6">
       <SectionHeader
         eyebrow={isEditing ? 'Edit product' : 'Create product'}
-        title={isEditing ? 'Update a live catalog item' : 'Add a new catalog item'}
-        description="Use this form to control how products appear in the storefront and how they participate in inventory-aware checkout."
-        action={<Link to="/products" className="inline-flex items-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">Back to products</Link>}
+        title={isEditing ? 'Update a live catalog record' : 'Create a new catalog record'}
+        description="This editor is structured as a commerce backoffice form: product identity and copy on the left, operational settings on the right, with explicit visibility and inventory controls."
+        action={<Link to="/products" className="backoffice-button-secondary">Back to products</Link>}
       />
 
-      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <AdminPanel className="p-6">
-          <form className="grid gap-5" onSubmit={handleSubmit}>
-            <div className="grid gap-5 md:grid-cols-2">
-              <label className="text-sm font-medium text-slate-600">
-                Product name
-                <input
-                  type="text"
-                  name="name"
-                  value={form.name}
-                  onChange={handleTextChange}
-                  className="mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
-                  required
-                />
+      <form onSubmit={handleSubmit} className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_360px]">
+        <div className="space-y-5">
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Core product</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Identity and merchandising copy</h2>
+            </div>
+            <div className="grid gap-5 px-5 py-5">
+              <label className="text-sm font-medium text-slate-700">
+                Product title
+                <input type="text" name="name" value={form.name} onChange={handleTextChange} className="backoffice-input mt-2" required />
               </label>
 
-              <label className="text-sm font-medium text-slate-600">
+              <label className="text-sm font-medium text-slate-700">
+                Description
+                <textarea name="description" value={form.description} onChange={handleTextChange} rows={8} className="backoffice-textarea mt-2" />
+              </label>
+            </div>
+          </AdminPanel>
+
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Catalog placement</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Category and storefront rules</h2>
+            </div>
+            <div className="grid gap-5 px-5 py-5 md:grid-cols-2">
+              <label className="text-sm font-medium text-slate-700">
                 Category
-                <select
-                  name="categoryCode"
-                  value={form.categoryCode}
-                  onChange={handleTextChange}
-                  className="mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
-                  required
-                >
+                <select name="categoryCode" value={form.categoryCode} onChange={handleTextChange} className="backoffice-select mt-2" required>
                   <option value="" disabled>Select a category</option>
                   {categories.map((category) => (
-                    <option key={category.code} value={category.code}>
-                      {category.name}
-                    </option>
+                    <option key={category.code} value={category.code}>{category.name}</option>
                   ))}
                 </select>
               </label>
-            </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
-              <label className="text-sm font-medium text-slate-600">
-                Price
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  name="price"
-                  value={form.price}
-                  onChange={handleNumberChange}
-                  className="mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
-                  required
-                />
-              </label>
-
-              <label className="text-sm font-medium text-slate-600">
-                Stock quantity
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  name="stockQuantity"
-                  value={form.stockQuantity}
-                  onChange={handleNumberChange}
-                  className="mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
-                  required
-                />
-              </label>
-            </div>
-
-            <label className="text-sm font-medium text-slate-600">
-              Description
-              <textarea
-                name="description"
-                value={form.description}
-                onChange={handleTextChange}
-                rows={6}
-                className="mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#2558f5]"
-              />
-            </label>
-
-            <div className="grid gap-5 md:grid-cols-[1fr]">
-              <label className="flex items-center gap-3 rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))}
-                  className="h-4 w-4 rounded border-slate-300 text-[#2558f5] focus:ring-[#2558f5]"
-                />
-                Make this product visible in the customer storefront
-              </label>
-            </div>
-
-            {error ? <div className="rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
-
-            <button
-              type="submit"
-              disabled={pending}
-              className="inline-flex items-center justify-center rounded-full bg-[#2558f5] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1947db] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {pending ? 'Saving...' : isEditing ? 'Save changes' : 'Create product'}
-            </button>
-          </form>
-        </AdminPanel>
-
-        <AdminPanel className="p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Catalog guidance</p>
-          <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">Make storefront behavior predictable</h2>
-          <div className="mt-6 grid gap-4 text-sm leading-7 text-slate-600">
-            {[
-              'Only active products appear in the customer portal and can be added to the basket.',
-              'Inventory is not reserved when a shopper adds an item to cart; reservation happens during order creation.',
-              'Use a stable category taxonomy so storefront navigation and admin analytics stay consistent.',
-            ].map((item) => (
-              <div key={item} className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4">
-                {item}
+              <div className="text-sm font-medium text-slate-700">
+                Storefront status
+                <div className="mt-2 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+                  <input
+                    type="checkbox"
+                    checked={form.active}
+                    onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-300"
+                  />
+                  <div>
+                    <div className="font-semibold text-slate-950">Visible to shoppers</div>
+                    <div className="mt-1 text-[12px] text-slate-500">Inactive products remain in the catalog but are hidden from the storefront.</div>
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
-        </AdminPanel>
-      </div>
+            </div>
+          </AdminPanel>
+        </div>
+
+        <div className="space-y-5">
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Operational settings</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Price and inventory</h2>
+            </div>
+            <div className="grid gap-5 px-5 py-5">
+              <label className="text-sm font-medium text-slate-700">
+                Price
+                <input type="number" min="0" step="0.01" name="price" value={form.price} onChange={handleNumberChange} className="backoffice-input mt-2" required />
+              </label>
+
+              <label className="text-sm font-medium text-slate-700">
+                Stock quantity
+                <input type="number" min="0" step="1" name="stockQuantity" value={form.stockQuantity} onChange={handleNumberChange} className="backoffice-input mt-2" required />
+              </label>
+
+              <div className="backoffice-surface-muted px-4 py-4 text-sm leading-6 text-slate-600">
+                Inventory is reserved only during order creation. Adding a product to a cart does not reserve stock.
+              </div>
+            </div>
+          </AdminPanel>
+
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Publishing</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Save behavior</h2>
+            </div>
+            <div className="grid gap-4 px-5 py-5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-600">Current visibility</span>
+                <StatusPill tone={form.active ? 'success' : 'muted'}>{form.active ? 'Active' : 'Inactive'}</StatusPill>
+              </div>
+              {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+              <button type="submit" disabled={pending} className="backoffice-button-primary w-full">
+                {pending ? 'Saving...' : isEditing ? 'Save changes' : 'Create product'}
+              </button>
+            </div>
+          </AdminPanel>
+        </div>
+      </form>
     </div>
   );
 }

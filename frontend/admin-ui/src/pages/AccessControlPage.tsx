@@ -23,9 +23,9 @@ const adminRoles = [
 ];
 
 const policyItems = [
-  'The admin UI is isolated behind configured credentials and should never be exposed with default values in shared environments.',
-  'Because backend authentication does not yet exist, this credential gate is a UI-only control and must be replaced by JWT or Keycloak before production use.',
-  'Catalog writes and destructive actions should eventually be role-gated and audited server-side, not just hidden in the client.',
+  'The current sign-in is a client-side credential gate only and must be replaced by backend-issued JWT or an identity provider before production use.',
+  'Destructive actions such as delete and write operations are not server-side role gated yet, so the UI role model is directional rather than authoritative.',
+  'Audit trails, session expiry, and role-based route protection should attach to gateway-backed auth rather than remain inside the React client.',
 ];
 
 export function AccessControlPage() {
@@ -34,47 +34,72 @@ export function AccessControlPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        eyebrow="Access control"
-        title="Credentials, roles, and operational guardrails"
-        description="This page keeps the current security model explicit while framing how server-side RBAC and identity integration can attach to the existing backoffice structure later."
+        eyebrow="Access"
+        title="Make the current trust boundary explicit"
+        description="This workspace documents the current credential boundary, the intended role model, and the operational gaps that still need server-side identity and authorization."
       />
 
-      <div className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
-        <AdminPanel className="p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Current session boundary</p>
-          <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
-            <div className="text-sm text-slate-500">Configured admin email</div>
-            <div className="mt-2 text-xl font-bold text-slate-950">{adminEmail}</div>
+      <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <AdminPanel className="p-0 overflow-hidden">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Current session</div>
+            <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Credential boundary</h2>
           </div>
-          <div className="mt-4 rounded-[22px] border border-slate-200 bg-white px-4 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-950">Current session</div>
-                <div className="mt-1 text-sm text-slate-600">{session?.email ?? 'No active session'}</div>
-              </div>
-              <StatusPill tone={session ? 'success' : 'muted'}>{session ? 'Authenticated' : 'Signed out'}</StatusPill>
+          <div className="grid gap-4 px-5 py-5">
+            <div className="backoffice-surface-muted px-4 py-4">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-slate-500">Configured admin identity</div>
+              <div className="mt-2 font-semibold text-slate-950">{adminEmail}</div>
             </div>
-          </div>
-          <div className="mt-5 grid gap-3">
-            {policyItems.map((item) => (
-              <div key={item} className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-600">
-                {item}
+            <div className="backoffice-surface-muted px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-slate-950">Session status</div>
+                  <div className="mt-1 text-[12px] text-slate-500">{session?.email ?? 'No active session'}</div>
+                </div>
+                <StatusPill tone={session ? 'success' : 'muted'}>{session ? 'Authenticated' : 'Signed out'}</StatusPill>
               </div>
-            ))}
+            </div>
           </div>
         </AdminPanel>
 
-        <AdminPanel className="p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Role model</p>
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {adminRoles.map((item) => (
-              <div key={item.role} className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-sm font-semibold text-slate-950">{item.role}</div>
-                <div className="mt-2 text-sm leading-7 text-slate-600">{item.scope}</div>
-              </div>
-            ))}
-          </div>
-        </AdminPanel>
+        <div className="space-y-5">
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Role model</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Intended backoffice responsibilities</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="resource-table">
+                <thead>
+                  <tr>
+                    <th>Role</th>
+                    <th>Scope</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminRoles.map((item) => (
+                    <tr key={item.role}>
+                      <td className="font-semibold text-slate-950">{item.role}</td>
+                      <td>{item.scope}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </AdminPanel>
+
+          <AdminPanel className="p-0 overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Gaps</div>
+              <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Controls still missing</h2>
+            </div>
+            <div className="grid gap-3 px-5 py-5 text-sm leading-6 text-slate-600">
+              {policyItems.map((item) => (
+                <div key={item} className="backoffice-surface-muted px-4 py-4">{item}</div>
+              ))}
+            </div>
+          </AdminPanel>
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+  <th:block th:fragment="header(eyebrow, title, intro)">
+    <div style="padding: 32px; background: linear-gradient(135deg, #07152b 0%, #0f63ff 100%);">
+      <div class="eyebrow" th:text="${eyebrow}">Notification</div>
+      <h1 class="hero-title" th:text="${title}">Email title</h1>
+      <p class="hero-copy" th:text="${intro}">Email introduction</p>
+    </div>
+  </th:block>
+</html>

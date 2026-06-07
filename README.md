@@ -13,6 +13,7 @@ The platform currently includes:
 - PostgreSQL for product and order persistence
 - Kafka for asynchronous order events
 - OpenSearch for product discovery, faceting, relevance tuning, and search suggestions
+- Mailpit for local SMTP capture and email inspection
 - Docker Compose for infrastructure and full-stack container runs
 - GitHub Actions for backend and frontend build verification
 
@@ -22,6 +23,20 @@ The frontend split is intentional:
 - `admin-ui` is for customers, orders, products, search operations, access control, and integration oversight
 - the split preserves a clean boundary between public commerce flows and administrative controls
 - the current admin credential gate is intentionally documented as a frontend-only control until backend authentication exists
+
+## Learning Docs
+
+If you want to study the codebase in depth, start with the learning docs:
+
+- [`docs/README.md`](./docs/README.md)
+- [`docs/learning/README.md`](./docs/learning/README.md)
+- [`docs/learning/01-system-overview.md`](./docs/learning/01-system-overview.md)
+- [`docs/learning/02-request-and-event-flows.md`](./docs/learning/02-request-and-event-flows.md)
+- [`docs/learning/03-backend-services.md`](./docs/learning/03-backend-services.md)
+- [`docs/learning/04-search-and-notifications.md`](./docs/learning/04-search-and-notifications.md)
+- [`docs/learning/05-frontend-apps.md`](./docs/learning/05-frontend-apps.md)
+- [`docs/learning/06-infrastructure-and-delivery.md`](./docs/learning/06-infrastructure-and-delivery.md)
+- [`docs/learning/07-how-to-study-and-extend-orderflow.md`](./docs/learning/07-how-to-study-and-extend-orderflow.md)
 
 ## Architecture
 
@@ -37,6 +52,7 @@ graph TD
     K --> SS
     OS --> K[(Kafka\n9092)]
     K --> NS[Notification Service\n8083]
+    NS --> MP[Mailpit\nSMTP 1025 / UI 8025]
     SS --> OP[(OpenSearch\n9200)]
     PS --> PDB[(Product PostgreSQL\n5433)]
     OS --> ODB[(Order PostgreSQL\n5434)]
@@ -58,6 +74,8 @@ orderflow/
 ├── frontend/
 │   ├── portal-ui/
 │   └── admin-ui/
+├── docs/
+│   └── learning/
 ├── docker-compose.yml
 ├── README.md
 └── .github/workflows/build.yml
@@ -99,6 +117,7 @@ orderflow/
 - Apache Kafka
 - PostgreSQL
 - OpenSearch
+- Mailpit
 
 ### CI/CD
 
@@ -120,6 +139,8 @@ orderflow/
 | Kafka | `9092` |
 | OpenSearch | `9200` |
 | OpenSearch Performance API | `9600` |
+| Mailpit SMTP | `1025` |
+| Mailpit Web UI | `8025` |
 
 ## Frontend Apps
 
@@ -193,8 +214,11 @@ Base URL: `http://localhost:8083`
 
 Responsibilities:
 
-- consume Kafka `order.created` events
-- log order confirmation delivery
+- consume Kafka `order.created`, `order.cancelled`, and `inventory.low-stock` events
+- render HTML email templates with Thymeleaf fragments
+- include line-item and pricing-summary rendering for order confirmations
+- send or preview notification emails over SMTP
+- target Mailpit locally for development inspection
 - expose a lightweight status endpoint
 
 Status endpoint:
@@ -245,6 +269,7 @@ Order notifications:
 - Topic: `order.created`
 - Publisher: `order-service`
 - Consumer: `notification-service`
+- Triggered email: `ORDER_CONFIRMATION`
 
 Event payload:
 
@@ -254,6 +279,34 @@ Event payload:
 - `String customerEmail`
 - `BigDecimal totalAmount`
 - `String status`
+- `LocalDateTime createdAt`
+
+- Topic: `order.cancelled`
+- Publisher: future `order-service` cancellation flow
+- Consumer: `notification-service`
+- Triggered email: `ORDER_CANCELLED`
+
+Event payload:
+
+- `UUID eventId`
+- `Long orderId`
+- `String customerName`
+- `String customerEmail`
+- `String cancellationReason`
+- `LocalDateTime cancelledAt`
+
+- Topic: `inventory.low-stock`
+- Publisher: future inventory / product stock monitoring flow
+- Consumer: `notification-service`
+- Triggered email: `LOW_STOCK_ALERT`
+
+Event payload:
+
+- `UUID eventId`
+- `Long productId`
+- `String productName`
+- `Integer remainingStock`
+- `String adminEmail`
 - `LocalDateTime createdAt`
 
 Search indexing:
@@ -318,6 +371,7 @@ Open:
 
 - Portal UI: `http://localhost:5173`
 - Admin UI: `http://localhost:5174`
+- Mailpit UI: `http://localhost:8025`
 - API Gateway: `http://localhost:8080`
 - Product Service Swagger: `http://localhost:8081/swagger-ui.html`
 - Order Service Swagger: `http://localhost:8082/swagger-ui.html`
@@ -346,6 +400,7 @@ Container wiring details:
 - `admin-ui` bakes its credential gate from `ORDERFLOW_ADMIN_EMAIL` and `ORDERFLOW_ADMIN_PASSWORD` at build time
 - `product-service` seeds a sample catalog of 50 products across 10 categories on startup unless `ORDERFLOW_CATALOG_SEED_ENABLED=false`
 - category reference data is normalized in a dedicated `categories` table and products store `category_code`
+- `notification-service` delivers order confirmation emails to Mailpit over SMTP in local development
 - backend services communicate over Docker service names such as `product-service`, `order-service`, `product-db`, `order-db`, and `kafka`
 
 Default admin credentials for local demo builds:
@@ -364,7 +419,7 @@ ORDERFLOW_ADMIN_EMAIL=ops@example.com ORDERFLOW_ADMIN_PASSWORD='ChangeMe123!' do
 Start only the infrastructure:
 
 ```bash
-docker compose up -d product-db order-db kafka
+docker compose up -d product-db order-db kafka opensearch mailpit
 ```
 
 Then start the backend services from source.
@@ -417,6 +472,60 @@ Open:
 
 - Portal UI: `http://localhost:5173`
 - Admin UI: `http://localhost:5174`
+- Mailpit UI: `http://localhost:8025`
+
+## Notification Templates
+
+Notification templates live in `backend/notification-service/src/main/resources/templates/email`:
+
+```text
+templates/email/
+├── fragments/
+│   ├── footer.html
+│   ├── header.html
+│   └── styles.html
+├── low-stock-alert.html
+├── order-cancelled.html
+└── order-confirmation.html
+```
+
+Current order confirmation emails include:
+
+- line items
+- small thumbnail placeholders per product
+- quantity, rate, and line price
+- subtotal, tax, shipping, discount, and grand total summary rows
+
+## Testing Notification Emails
+
+With the full stack running, `notification-service` consumes Kafka events and turns them into HTML emails. By default, the application property `notification.email.enabled=false` logs previews only. In Docker Compose, the running service overrides that to `true` so Mailpit receives the messages.
+
+Use Mailpit:
+
+- Web UI: `http://localhost:8025`
+- SMTP endpoint from the Docker network: `mailpit:1025`
+- SMTP endpoint from the host: `localhost:1025`
+
+Typical flow:
+
+1. create or use an active product
+2. place an order through `portal-ui` or `POST /api/orders`
+3. open Mailpit and inspect the captured confirmation email
+
+To preview emails without sending them, keep:
+
+- `notification.email.enabled=false`
+
+To enable SMTP delivery outside Docker Compose, set:
+
+- `NOTIFICATION_EMAIL_ENABLED=true`
+- `MAIL_HOST=<smtp-host>`
+- `MAIL_PORT=<smtp-port>`
+- `NOTIFICATION_EMAIL_FROM=<from-address>`
+
+Mailpit also exposes a REST API for automated checks:
+
+- `http://localhost:8025/api/v1/`
 
 If you want different local admin credentials for the source build:
 
@@ -511,7 +620,7 @@ Current simplifications include:
 
 - product reservation is synchronous and per line item
 - there is no compensation flow or saga orchestration if a later reservation fails
-- notification delivery is simulated through structured logs only
+- notification emails are delivered locally through Mailpit and can be switched to preview-only mode with configuration
 - local JPA auto-update is used instead of a migration tool
 - admin-ui authentication is enforced in the frontend only until JWT or Keycloak is added server-side
 - customer records are derived from orders because there is no dedicated customer service yet

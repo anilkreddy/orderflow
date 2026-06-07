@@ -91,6 +91,18 @@ services:
     networks:
       - orderflow-network
 
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: orderflow-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    environment:
+      MP_MAX_MESSAGES: 5000
+    networks:
+      - orderflow-network
+
   product-service:
     build:
       context: ./backend
@@ -146,8 +158,17 @@ services:
     depends_on:
       kafka:
         condition: service_started
+      mailpit:
+        condition: service_started
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      NOTIFICATION_EMAIL_ENABLED: "true"
+      NOTIFICATION_EMAIL_FROM: no-reply@oflio.local
+      NOTIFICATION_EMAIL_REPLY_TO: support@oflio.local
+      NOTIFICATION_EMAIL_STORE_NAME: Oflio Commerce
+      NOTIFICATION_EMAIL_STOREFRONT_BASE_URL: http://localhost:5173
     ports:
       - "8083:8083"
     networks:

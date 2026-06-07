@@ -18,6 +18,6 @@ public class NotificationStatusController {
         return new ServiceStatusResponse(
                 "notification-service",
                 "UP",
-                "Consumes order.created events and logs confirmation delivery");
+                "Consumes order.created, order.cancelled, and inventory.low-stock Kafka events to render Thymeleaf HTML emails.");
     }
 }

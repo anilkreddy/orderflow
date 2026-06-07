@@ -1,4 +1,4 @@
-package com.orderflow.order.messaging;
+package com.orderflow.notification.event;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

@@ -13,7 +13,7 @@ public class OpenApiConfiguration {
         return new OpenAPI()
                 .info(new Info()
                         .title("OrderFlow Notification Service API")
-                        .description("Consumes order.created Kafka events and exposes a service status endpoint.")
+                        .description("Consumes order.created, order.cancelled, and inventory.low-stock Kafka events, renders Thymeleaf email templates, and sends or previews HTML emails.")
                         .version("v1"));
     }
 }

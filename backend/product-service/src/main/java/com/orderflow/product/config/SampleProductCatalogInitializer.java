@@ -5,6 +5,7 @@ import com.orderflow.product.domain.Product;
 import com.orderflow.product.repository.CategoryRepository;
 import com.orderflow.product.repository.ProductRepository;
 import java.math.BigDecimal;
+import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.LinkedHashMap;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -192,19 +194,17 @@ public class SampleProductCatalogInitializer implements ApplicationRunner {
     }
 
     private boolean legacyCategoryColumnExists() {
-        Boolean exists = jdbcTemplate.queryForObject(
-                """
-                select exists (
-                    select 1
-                    from information_schema.columns
-                    where table_schema = current_schema()
-                      and table_name = 'products'
-                      and column_name = 'category'
-                )
-                """,
-                Boolean.class);
+        return Boolean.TRUE.equals(jdbcTemplate.execute((ConnectionCallback<Boolean>) connection -> {
+            DatabaseMetaData metaData = connection.getMetaData();
+            return columnExists(metaData, "products", "category")
+                    || columnExists(metaData, "PRODUCTS", "CATEGORY");
+        }));
+    }
 
-        return Boolean.TRUE.equals(exists);
+    private boolean columnExists(DatabaseMetaData metaData, String tableName, String columnName) throws SQLException {
+        try (ResultSet columns = metaData.getColumns(null, null, tableName, columnName)) {
+            return columns.next();
+        }
     }
 
     private LegacyProductRow mapLegacyRow(ResultSet resultSet) throws SQLException {

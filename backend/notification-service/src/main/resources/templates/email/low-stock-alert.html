@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Low stock alert</title>
+    <th:block th:replace="~{email/fragments/styles :: styles}"></th:block>
+  </head>
+  <body>
+    <div class="email-shell">
+      <div class="email-card">
+        <th:block th:replace="~{email/fragments/header :: header('Inventory alert', 'Stock threshold reached.', |${productName} has dropped to ${remainingStock} units and needs attention.|)}"></th:block>
+        <div class="email-body">
+          <table class="metric-grid" role="presentation">
+            <tr>
+              <td>Product</td>
+              <td th:text="${productName}">Nova X5 Smartphone</td>
+            </tr>
+            <tr>
+              <td>Product ID</td>
+              <td th:text="${productId}">101</td>
+            </tr>
+            <tr>
+              <td>Remaining stock</td>
+              <td th:text="${remainingStock}">5</td>
+            </tr>
+            <tr>
+              <td>Event time</td>
+              <td th:text="${createdAt}">Jun 7, 2026 at 5:20 AM</td>
+            </tr>
+          </table>
+          <div class="notice" th:if="${remainingStock != null}">
+            Review replenishment, merchandising exposure, and supplier lead time before the item reaches zero available stock.
+          </div>
+        </div>
+        <th:block th:replace="~{email/fragments/footer :: footer(|${storeName} generated this low stock alert automatically from the inventory event stream.|)}"></th:block>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order confirmation</title>
+    <th:block th:replace="~{email/fragments/styles :: styles}"></th:block>
+  </head>
+  <body>
+    <div class="email-shell">
+      <div class="email-card">
+        <th:block th:replace="~{email/fragments/header :: header(${storeName}, 'Your order is confirmed.', |Hi ${customerName}, your order #${orderId} has been received and is now moving through fulfillment.|)}"></th:block>
+        <div class="email-body">
+          <table class="metric-grid" role="presentation">
+            <tr>
+              <td>Order number</td>
+              <td th:text="|#${orderId}|">#1001</td>
+            </tr>
+            <tr th:if="${status != null}">
+              <td>Status</td>
+              <td th:text="${status}">CONFIRMED</td>
+            </tr>
+            <tr>
+              <td>Created at</td>
+              <td th:text="${createdAt}">Jun 7, 2026 at 4:02 AM</td>
+            </tr>
+          </table>
+
+          <div class="section-title">Items in your order</div>
+          <table class="line-items" role="presentation" th:if="${lineItems != null and !#lists.isEmpty(lineItems)}">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th class="numeric">Qty</th>
+                <th class="numeric">Rate</th>
+                <th class="numeric">Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr th:each="item : ${lineItems}">
+                <td>
+                  <table class="item-media" role="presentation">
+                    <tr>
+                      <td class="item-thumb-cell">
+                        <img class="item-thumb" th:src="${item.productImageUrl}" th:alt="${item.productName}">
+                      </td>
+                      <td style="padding-left: 12px;">
+                        <p class="item-name" th:text="${item.productName}">Product name</p>
+                        <p class="item-meta" th:text="|Product #${item.productId}|">Product #101</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+                <td class="numeric" th:text="${item.quantity}">1</td>
+                <td class="numeric" th:text="${item.unitPrice}">$0.00</td>
+                <td class="numeric" th:text="${item.lineTotal}">$0.00</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="notice" th:if="${lineItems == null or #lists.isEmpty(lineItems)}">
+            Item-level details were not attached to this event, but your order has been confirmed successfully.
+          </div>
+
+          <div class="summary-card">
+            <table class="summary-grid" role="presentation">
+              <tr>
+                <td>Total price</td>
+                <td th:text="${subtotalAmount}">$0.00</td>
+              </tr>
+              <tr>
+                <td>Taxes</td>
+                <td th:text="${taxAmount}">$0.00</td>
+              </tr>
+              <tr>
+                <td>Shipping</td>
+                <td th:text="${shippingAmount}">$0.00</td>
+              </tr>
+              <tr>
+                <td>Discounts</td>
+                <td th:text="${discountAmount}">$0.00</td>
+              </tr>
+              <tr class="total-row">
+                <td>Total</td>
+                <td th:text="${totalAmount}">$0.00</td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="action-row">
+            <a class="action-pill" th:href="|${storefrontBaseUrl}/track-order|">Track your order</a>
+          </div>
+          <div class="notice">
+            We will send another update when your shipment moves to the next stage. Keep this email for your records.
+          </div>
+        </div>
+        <th:block th:replace="~{email/fragments/footer :: footer(|${storeName} has generated this order confirmation automatically from the notification-service.|)}"></th:block>
+      </div>
+    </div>
+  </body>
+</html>

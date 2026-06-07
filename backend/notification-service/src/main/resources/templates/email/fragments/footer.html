@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+  <th:block th:fragment="footer(message)">
+    <div style="padding: 0 32px 28px; color: #64748b; font-size: 13px; line-height: 1.7;">
+      <p style="margin: 0;" th:text="${message}">Footer message</p>
+      <p style="margin: 12px 0 0;" th:if="${supportEmail != null and !#strings.isEmpty(supportEmail)}">
+        Need help? Contact
+        <a th:href="|mailto:${supportEmail}|" th:text="${supportEmail}" style="color: #0f63ff; text-decoration: none;">support@example.com</a>
+      </p>
+    </div>
+  </th:block>
+</html>

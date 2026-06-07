@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order cancelled</title>
+    <th:block th:replace="~{email/fragments/styles :: styles}"></th:block>
+  </head>
+  <body>
+    <div class="email-shell">
+      <div class="email-card">
+        <th:block th:replace="~{email/fragments/header :: header(${storeName}, 'Your order has been cancelled.', |Hi ${customerName}, order #${orderId} is no longer active in our system.|)}"></th:block>
+        <div class="email-body">
+          <table class="metric-grid" role="presentation">
+            <tr>
+              <td>Order number</td>
+              <td th:text="|#${orderId}|">#1001</td>
+            </tr>
+            <tr>
+              <td>Cancelled at</td>
+              <td th:text="${cancelledAt}">Jun 7, 2026 at 5:15 AM</td>
+            </tr>
+            <tr th:if="${cancellationReason != null and !#strings.isEmpty(cancellationReason)}">
+              <td>Reason</td>
+              <td th:text="${cancellationReason}">Customer requested cancellation</td>
+            </tr>
+          </table>
+          <div class="notice">
+            If this cancellation was unexpected, reply to this email or contact support and we will review the order history with you.
+          </div>
+        </div>
+        <th:block th:replace="~{email/fragments/footer :: footer(|${storeName} has generated this cancellation notice automatically from the notification-service.|)}"></th:block>
+      </div>
+    </div>
+  </body>
+</html>

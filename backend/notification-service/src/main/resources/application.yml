@@ -8,11 +8,32 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: notification-service
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
-        spring.json.trusted.packages: com.orderflow.notification.messaging
-        spring.json.value.default.type: com.orderflow.notification.messaging.OrderCreatedEvent
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "*"
+    listener:
+      missing-topics-fatal: false
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    mode: HTML
+    cache: false
+
 management:
   endpoints:
     web:
@@ -21,7 +42,18 @@ management:
 
 application:
   kafka:
-    order-created-topic: order.created
+    topics:
+      order-created: order.created
+      order-cancelled: order.cancelled
+      low-stock: inventory.low-stock
+
+notification:
+  email:
+    enabled: ${NOTIFICATION_EMAIL_ENABLED:false}
+    from: ${NOTIFICATION_EMAIL_FROM:no-reply@orderflow.local}
+    reply-to: ${NOTIFICATION_EMAIL_REPLY_TO:support@orderflow.local}
+    store-name: ${NOTIFICATION_EMAIL_STORE_NAME:Oflio Commerce}
+    storefront-base-url: ${NOTIFICATION_EMAIL_STOREFRONT_BASE_URL:http://localhost:5173}
 
 logging:
   level:

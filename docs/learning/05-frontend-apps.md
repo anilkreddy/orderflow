@@ -107,7 +107,7 @@ That means:
 - it is useful for learning UI flow separation
 - it is not a real production-grade authorization model yet
 
-A future backend auth solution such as Keycloak should move this from client-side gating to server-enforced identity and access control.
+A future hardened identity-provider setup should move this from client-side gating to server-enforced identity and access control.
 
 ## How to learn the frontends
 

@@ -1,27 +1,42 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { LoadingPanel } from '../components/LoadingPanel';
 import { SectionHeading } from '../components/SectionHeading';
 import { orderApi, toApiMessage } from '../lib/api';
+import { useCustomerAuth } from '../lib/auth';
 import { formatCurrency, formatDate } from '../lib/format';
 import type { Order } from '../types';
 
 export function OrderStatusPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const { ready, isAuthenticated, hasRequiredScope } = useCustomerAuth();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) {
+    if (!id || !ready) {
       return;
     }
 
     const orderId = id;
+    const guestEmail = searchParams.get('email');
 
     async function loadOrder() {
       try {
-        const data = await orderApi.get(orderId);
+        const data = isAuthenticated && hasRequiredScope
+          ? await orderApi.getByCode(orderId)
+          : guestEmail
+            ? await orderApi.lookupByCode(orderId, guestEmail)
+            : null;
+
+        if (!data) {
+          setError('Guest order access requires the checkout email. Use the order lookup page to reopen this order.');
+          setOrder(null);
+          return;
+        }
+
         setOrder(data);
         setError(null);
       } catch (loadError) {
@@ -32,7 +47,7 @@ export function OrderStatusPage() {
     }
 
     void loadOrder();
-  }, [id]);
+  }, [hasRequiredScope, id, isAuthenticated, ready, searchParams]);
 
   const statusNote = useMemo(() => {
     if (!order) {
@@ -71,15 +86,26 @@ export function OrderStatusPage() {
   }
 
   if (!order) {
-    return <div className="mx-auto max-w-[1200px] px-4 py-10 text-sm text-rose-700 md:px-6">{error ?? 'Order not found'}</div>;
+    return (
+      <div className="mx-auto max-w-[1200px] px-4 py-10 md:px-6">
+        <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">{error ?? 'Order not found'}</div>
+        <div className="mt-5">
+          <Link to="/track-order" className="inline-flex items-center rounded-full bg-[#0f63ff] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1155d8]">
+            Back to order lookup
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-10 md:px-6">
       <SectionHeading
         eyebrow="Order Status"
-        title={`Thanks for your order #${order.id}`}
-        description="A customer-facing status view backed by the live order-service record."
+        title={`Thanks for your order ${order.orderCode}`}
+        description={hasRequiredScope
+          ? 'This order view is protected by customer ownership checks in the order service.'
+          : 'This guest status view is limited to the order and email combination you used at checkout.'}
         action={<Link to="/shop" className="inline-flex items-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">Continue shopping</Link>}
       />
 
@@ -116,6 +142,10 @@ export function OrderStatusPage() {
           <div className="market-panel rounded-[34px] px-6 py-6">
             <div className="text-lg font-semibold text-slate-950">Order details</div>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <div className="rounded-[24px] bg-white px-4 py-4 shadow-[0_12px_25px_rgba(15,23,42,0.04)]">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Order code</div>
+                <div className="mt-2 text-sm font-semibold text-slate-900">{order.orderCode}</div>
+              </div>
               <div className="rounded-[24px] bg-white px-4 py-4 shadow-[0_12px_25px_rgba(15,23,42,0.04)]">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Placed</div>
                 <div className="mt-2 text-sm font-semibold text-slate-900">{formatDate(order.createdAt)}</div>

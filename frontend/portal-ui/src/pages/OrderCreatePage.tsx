@@ -80,7 +80,7 @@ export function OrderCreatePage() {
   const onSubmit = handleSubmit(async (values) => {
     try {
       const order = await orderApi.create(values);
-      navigate(`/orders/${order.id}`);
+      navigate(`/orders/${order.orderCode}`);
     } catch (error) {
       setFormError(toApiMessage(error, 'Unable to create order'));
     }

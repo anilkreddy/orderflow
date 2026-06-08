@@ -33,6 +33,7 @@ public class OrderEventPublisher {
         OrderCreatedEvent event = new OrderCreatedEvent(
                 UUID.randomUUID(),
                 order.getId(),
+                order.getOrderCode(),
                 order.getCustomerName(),
                 order.getCustomerEmail(),
                 order.getTotalAmount(),
@@ -45,9 +46,10 @@ public class OrderEventPublisher {
                 lineItems);
 
         kafkaTemplate.send(orderCreatedTopic, String.valueOf(order.getId()), event);
-        log.info("Published Kafka event topic={} orderId={} customerEmail={}",
+        log.info("Published Kafka event topic={} orderId={} orderCode={} customerEmail={}",
                 orderCreatedTopic,
                 order.getId(),
+                order.getOrderCode(),
                 order.getCustomerEmail());
     }
 }

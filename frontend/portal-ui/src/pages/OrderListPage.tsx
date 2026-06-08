@@ -42,7 +42,7 @@ export function OrderListPage() {
   const filteredOrders = useMemo(() => {
     return sortedOrders.filter((order) => {
       const matchesStatus = status === 'ALL' || order.status === status;
-      const target = `${order.id} ${order.customerName} ${order.customerEmail}`.toLowerCase();
+      const target = `${order.id} ${order.orderCode} ${order.customerName} ${order.customerEmail}`.toLowerCase();
       const matchesSearch = target.includes(search.trim().toLowerCase());
       return matchesStatus && matchesSearch;
     });
@@ -86,7 +86,7 @@ export function OrderListPage() {
       <Panel className="space-y-4">
         <div className="grid gap-3 lg:grid-cols-[1fr_220px]">
           <label className="grid gap-2 text-sm font-medium text-slate-700">
-            Search by customer or order number
+            Search by customer or order code
             <span className="field-shell rounded-2xl">
               <input value={search} onChange={(event) => setSearch(event.target.value)} className={inputClass} placeholder="Search queue" />
             </span>
@@ -130,7 +130,7 @@ export function OrderListPage() {
                 {filteredOrders.map((order) => (
                   <tr key={order.id} className="rounded-2xl bg-slate-50">
                     <td className="rounded-l-2xl px-3 py-4 text-sm font-semibold text-slate-900">
-                      <Link to={`/orders/${order.id}`} className="hover:text-teal-700">#{order.id}</Link>
+                      <Link to={`/orders/${order.orderCode}`} className="hover:text-teal-700">{order.orderCode}</Link>
                     </td>
                     <td className="px-3 py-4 text-sm text-slate-600">
                       <div className="font-medium text-slate-900">{order.customerName}</div>

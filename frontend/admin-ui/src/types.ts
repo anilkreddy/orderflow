@@ -119,12 +119,28 @@ export interface OrderItem {
 
 export interface Order {
   id: number;
+  orderCode: string;
   customerName: string;
   customerEmail: string;
   totalAmount: number;
   status: OrderStatus;
   createdAt: string;
   items: OrderItem[];
+}
+
+export interface CustomerProfile {
+  id: string;
+  identityUserId: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  enabled: boolean;
+  emailVerified: boolean;
+  registeredAt: string;
+  passwordChangedAt: string;
+  passwordExpiresAt: string;
+  updatedAt: string;
 }
 
 export interface CustomerSummary {
@@ -135,15 +151,14 @@ export interface CustomerSummary {
   lastOrderAt: string;
   lastOrderStatus: OrderStatus;
   latestOrderId: number;
-}
-
-export interface AdminCredentials {
-  email: string;
-  password: string;
+  latestOrderCode: string;
 }
 
 export interface AdminSession {
   email: string;
   displayName: string;
   signedInAt: string;
+  scopes: string[];
+  clientRoles: string[];
+  realmRoles: string[];
 }

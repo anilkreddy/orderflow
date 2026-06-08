@@ -1,11 +1,30 @@
 import axios from 'axios';
-import type { Category, Order, OrderPayload, Product, ProductPayload, ProductSearchResponse, SearchSuggestionResponse } from '../types';
+import type {
+  Category,
+  CustomerProfile,
+  CustomerRegistrationPayload,
+  Order,
+  OrderPayload,
+  Product,
+  ProductPayload,
+  ProductSearchResponse,
+  SearchSuggestionResponse,
+} from '../types';
+import { getCustomerAccessToken } from './auth';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080',
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+api.interceptors.request.use((config) => {
+  const token = getCustomerAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 export const productApi = {
@@ -85,12 +104,42 @@ export const orderApi = {
     const { data } = await api.get<Order[]>('/api/orders');
     return data;
   },
-  get: async (id: string): Promise<Order> => {
-    const { data } = await api.get<Order>(`/api/orders/${id}`);
+  listMine: async (): Promise<Order[]> => {
+    const { data } = await api.get<Order[]>('/api/orders/me');
+    return data;
+  },
+  lookup: async (customerEmail: string, orderId?: string): Promise<Order[]> => {
+    const { data } = await api.get<Order[]>('/api/orders/lookup', {
+      params: {
+        customerEmail,
+        orderCode: orderId?.trim() ? orderId.trim().toUpperCase() : undefined,
+      },
+    });
+    return data;
+  },
+  lookupByCode: async (orderCode: string, customerEmail: string): Promise<Order> => {
+    const { data } = await api.get<Order>(`/api/orders/lookup/code/${orderCode}`, {
+      params: { customerEmail },
+    });
+    return data;
+  },
+  getByCode: async (orderCode: string): Promise<Order> => {
+    const { data } = await api.get<Order>(`/api/orders/code/${orderCode}`);
     return data;
   },
   create: async (payload: OrderPayload): Promise<Order> => {
     const { data } = await api.post<Order>('/api/orders', payload);
+    return data;
+  },
+};
+
+export const customerApi = {
+  register: async (payload: CustomerRegistrationPayload): Promise<CustomerProfile> => {
+    const { data } = await api.post<CustomerProfile>('/api/customers/register', payload);
+    return data;
+  },
+  getCurrent: async (): Promise<CustomerProfile> => {
+    const { data } = await api.get<CustomerProfile>('/api/customers/me');
     return data;
   },
 };

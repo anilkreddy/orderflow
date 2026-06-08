@@ -24,7 +24,7 @@ export function OrderDetailsPage() {
 
     async function loadOrder() {
       try {
-        const data = await orderApi.get(orderId);
+        const data = await orderApi.getByCode(orderId);
         setOrder(data);
         setError(null);
       } catch (loadError) {
@@ -49,7 +49,7 @@ export function OrderDetailsPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Order Detail"
-        title={`Order #${order.id}`}
+        title={`Order ${order.orderCode}`}
         description="Trace the customer request, the reserved line items, and the downstream event handoff in one operational view."
         action={<Link to="/orders" className={secondaryButtonClass}>Back to queue</Link>}
       />

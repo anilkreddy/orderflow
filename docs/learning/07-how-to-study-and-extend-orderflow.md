@@ -89,7 +89,7 @@ Why:
 Why:
 
 - admin auth is frontend-only today
-- Keycloak would move identity to the right boundary
+- a dedicated identity provider would move authentication and access control to the right boundary
 
 ### Inventory events from product-service
 

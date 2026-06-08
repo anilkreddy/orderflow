@@ -21,6 +21,10 @@ spring:
               uri: ${ORDER_SERVICE_URL:http://localhost:8082}
               predicates:
                 - Path=/api/orders/**
+            - id: customer-service
+              uri: ${CUSTOMER_SERVICE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/customers/**
             - id: search-service
               uri: ${SEARCH_SERVICE_URL:http://localhost:8084}
               predicates:
@@ -40,7 +44,6 @@ spring:
                 allowedHeaders:
                   - "*"
                 allowCredentials: true
-
 management:
   endpoints:
     web:
@@ -55,3 +58,8 @@ logging:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+application:
+  security:
+    external-issuer-uri: ${AUTH_EXTERNAL_ISSUER_URI:http://localhost:8180/realms/oflio}
+    internal-jwk-set-uri: ${AUTH_INTERNAL_JWK_SET_URI:http://localhost:8180/realms/oflio/protocol/openid-connect/certs}

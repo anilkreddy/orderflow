@@ -1,0 +1,4 @@
+Can we use scopes for tokens? like customer, admin, catalog_manager etc. Also, don't mention keycloack anywhere in code or in labels or json request/response. Later we may use different vendor and it should work seamlessly
+
+
+Use different order code for user facing instead of using the primary key in the table

@@ -198,7 +198,8 @@ export function DashboardPage() {
                 {recentOrders.map((order) => (
                   <tr key={order.id}>
                     <td>
-                      <Link to={`/orders/${order.id}`} className="font-semibold text-slate-950">#{order.id}</Link>
+                      <Link to={`/orders/${order.id}`} className="font-semibold text-slate-950">{order.orderCode}</Link>
+                      <div className="mt-1 text-[12px] text-slate-500">Internal #{order.id}</div>
                     </td>
                     <td>
                       <div className="font-medium text-slate-950">{order.customerName}</div>

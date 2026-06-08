@@ -16,6 +16,7 @@ export function buildCustomerSummaries(orders: Order[]): CustomerSummary[] {
         lastOrderAt: order.createdAt,
         lastOrderStatus: order.status,
         latestOrderId: order.id,
+        latestOrderCode: order.orderCode,
       });
       continue;
     }
@@ -27,6 +28,7 @@ export function buildCustomerSummaries(orders: Order[]): CustomerSummary[] {
       existing.lastOrderAt = order.createdAt;
       existing.lastOrderStatus = order.status;
       existing.latestOrderId = order.id;
+      existing.latestOrderCode = order.orderCode;
       existing.customerName = order.customerName;
     }
   }

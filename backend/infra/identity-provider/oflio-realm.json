@@ -1,0 +1,176 @@
+{
+  "realm": "oflio",
+  "enabled": true,
+  "displayName": "Oflio Commerce",
+  "registrationAllowed": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "CUSTOMER",
+        "description": "Registered storefront customer"
+      },
+      {
+        "name": "BACKOFFICE_ADMIN",
+        "description": "Backoffice administrator"
+      }
+    ],
+    "client": {
+      "oflio-admin-ui": [
+        {
+          "name": "admin-ui-access",
+          "description": "Access to the admin portal"
+        },
+        {
+          "name": "catalog-manager",
+          "description": "Catalog operations in admin portal"
+        },
+        {
+          "name": "order-manager",
+          "description": "Order operations in admin portal"
+        },
+        {
+          "name": "customer-manager",
+          "description": "Customer operations in admin portal"
+        },
+        {
+          "name": "search-manager",
+          "description": "Search operations in admin portal"
+        }
+      ],
+      "oflio-portal-ui": [
+        {
+          "name": "storefront-access",
+          "description": "Access to the storefront customer experience"
+        }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "oflio-admin-ui",
+      "name": "Oflio Admin UI",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "rootUrl": "http://localhost:5174",
+      "baseUrl": "http://localhost:5174",
+      "redirectUris": [
+        "http://localhost:5174/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5174"
+      ],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5174/*"
+      }
+    },
+    {
+      "clientId": "oflio-portal-ui",
+      "name": "Oflio Portal UI",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "rootUrl": "http://localhost:5173",
+      "baseUrl": "http://localhost:5173",
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "name": "customers",
+      "path": "/customers",
+      "subGroups": [
+        {
+          "name": "registered",
+          "path": "/customers/registered",
+          "realmRoles": [
+            "CUSTOMER"
+          ],
+          "clientRoles": {
+            "oflio-portal-ui": [
+              "storefront-access"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "admins",
+      "path": "/admins",
+      "subGroups": [
+        {
+          "name": "operations",
+          "path": "/admins/operations",
+          "realmRoles": [
+            "BACKOFFICE_ADMIN"
+          ],
+          "clientRoles": {
+            "oflio-admin-ui": [
+              "admin-ui-access",
+              "catalog-manager",
+              "order-manager",
+              "customer-manager",
+              "search-manager"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@oflio.local",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Oflio",
+      "lastName": "Admin",
+      "email": "admin@oflio.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Admin123!",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/admins/operations"
+      ]
+    },
+    {
+      "username": "customer@oflio.local",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Maya",
+      "lastName": "Patel",
+      "email": "customer@oflio.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Customer123!",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/customers/registered"
+      ]
+    }
+  ]
+}

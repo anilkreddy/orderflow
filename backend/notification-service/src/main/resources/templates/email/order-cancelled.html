@@ -9,12 +9,12 @@
   <body>
     <div class="email-shell">
       <div class="email-card">
-        <th:block th:replace="~{email/fragments/header :: header(${storeName}, 'Your order has been cancelled.', |Hi ${customerName}, order #${orderId} is no longer active in our system.|)}"></th:block>
+        <th:block th:replace="~{email/fragments/header :: header(${storeName}, 'Your order has been cancelled.', |Hi ${customerName}, order ${orderCode != null ? orderCode : '#' + orderId} is no longer active in our system.|)}"></th:block>
         <div class="email-body">
           <table class="metric-grid" role="presentation">
             <tr>
               <td>Order number</td>
-              <td th:text="|#${orderId}|">#1001</td>
+              <td th:text="${orderCode != null ? orderCode : '#' + orderId}">OFL-20260607-AB12CD34</td>
             </tr>
             <tr>
               <td>Cancelled at</td>

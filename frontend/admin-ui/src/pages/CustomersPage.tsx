@@ -133,6 +133,7 @@ export function CustomersPage() {
                       <td className="font-semibold text-slate-950">{formatCurrency(customer.lifetimeValue)}</td>
                       <td>
                         <div className="text-[12px] text-slate-500">{formatDateTime(customer.lastOrderAt)}</div>
+                        <div className="mt-1 font-medium text-slate-950">{customer.latestOrderCode}</div>
                         <div className="mt-2"><StatusPill tone={orderStatusTone(customer.lastOrderStatus)}>{formatStatus(customer.lastOrderStatus)}</StatusPill></div>
                       </td>
                       <td>

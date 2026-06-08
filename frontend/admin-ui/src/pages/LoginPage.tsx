@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 
@@ -9,11 +9,7 @@ interface LoginState {
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { adminEmail, signIn } = useAuth();
-  const [email, setEmail] = useState(adminEmail);
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { ready, isAuthenticated, hasRequiredScope, errorMessage, signIn, clearError } = useAuth();
 
   const targetRoute = (location.state as LoginState | null)?.from ?? '/dashboard';
 
@@ -21,20 +17,11 @@ export function LoginPage() {
     document.title = 'Sign In | Oflio Commerce Admin';
   }, []);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setPending(true);
-    setError(null);
-
-    try {
-      signIn({ email, password });
+  useEffect(() => {
+    if (ready && isAuthenticated && hasRequiredScope) {
       navigate(targetRoute, { replace: true });
-    } catch {
-      setError('The provided email or password is invalid.');
-    } finally {
-      setPending(false);
     }
-  }
+  }, [hasRequiredScope, isAuthenticated, navigate, ready, targetRoute]);
 
   return (
     <div className="login-shell min-h-screen px-4 py-8 text-white">
@@ -45,14 +32,14 @@ export function LoginPage() {
             Operate Oflio like a real ecommerce backoffice.
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-8 text-slate-300">
-            Catalog, order, customer, and search operations live here. The shopper storefront stays separate. This sign-in is the current backoffice boundary until gateway-backed authentication is introduced.
+            Backoffice users authenticate through the shared identity platform. Group and scope assignment in the Oflio realm determines who can enter this portal.
           </p>
 
           <div className="mt-10 grid gap-4 md:grid-cols-3">
             {[
-              ['Catalog control', 'Manage categories, visibility, and inventory-aware products.'],
-              ['Order review', 'Inspect queue health, exceptions, and customer purchase detail.'],
-              ['Search ops', 'Tune runtime synonyms and validate ranking behavior.'],
+              ['Catalog control', 'Manage products, categories, pricing, and inventory-aware visibility.'],
+              ['Order review', 'Inspect queue health, customer exceptions, and fulfillment context.'],
+              ['Search ops', 'Tune synonyms, facets, and search governance with gated access.'],
             ].map(([title, description]) => (
               <div key={title} className="rounded-2xl border border-white/10 bg-black/10 px-4 py-4">
                 <div className="font-semibold text-white">{title}</div>
@@ -64,35 +51,32 @@ export function LoginPage() {
 
         <section className="backoffice-surface px-7 py-8 text-slate-900">
           <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Backoffice sign in</div>
-          <h2 className="mt-3 font-display text-3xl font-semibold text-slate-950">Use the configured admin credentials</h2>
+          <h2 className="mt-3 font-display text-3xl font-semibold text-slate-950">Authenticate with managed identity</h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            Credentials are provided via `VITE_ADMIN_EMAIL` and `VITE_ADMIN_PASSWORD`. Replace the defaults before sharing the environment.
+            Admin access requires the <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[12px]">admin</code> access scope in the browser token accepted by the gateway.
           </p>
 
-          <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-            <label className="block text-sm font-medium text-slate-700">
-              Email
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="backoffice-input mt-2" required />
-            </label>
+          {errorMessage ? (
+            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {errorMessage}
+            </div>
+          ) : null}
 
-            <label className="block text-sm font-medium text-slate-700">
-              Password
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="backoffice-input mt-2" required />
-            </label>
-
-            {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
-
-            <button type="submit" disabled={pending} className="backoffice-button-primary w-full">
-              {pending ? 'Signing in...' : 'Access backoffice'}
+          <div className="mt-8 space-y-4">
+            <button
+              type="button"
+              className="backoffice-button-primary w-full"
+              onClick={() => {
+                clearError();
+                void signIn(Boolean(errorMessage));
+              }}
+            >
+              {ready ? 'Continue to sign in' : 'Preparing identity provider...'}
             </button>
-          </form>
+          </div>
 
           <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
-            The customer storefront remains available at{' '}
-            <a href="http://localhost:5173" className="font-semibold text-slate-950 underline decoration-slate-300 underline-offset-4">
-              http://localhost:5173
-            </a>
-            .
+            Default local identities are seeded for development. Use <span className="font-semibold text-slate-950">admin@oflio.local</span> for backoffice access and the storefront customer account separately.
           </div>
         </section>
       </div>

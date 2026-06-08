@@ -1,18 +1,19 @@
 # OrderFlow
 
-OrderFlow is a production-shaped learning project for an order management platform built with Java microservices and two distinct React frontends: a customer ecommerce portal and a credential-gated backoffice.
+OrderFlow is a production-shaped learning project for an order management platform built with Java microservices, OIDC-backed identity, and two distinct React frontends: a customer ecommerce portal and a restricted backoffice.
 
 ## Overview
 
 The platform currently includes:
 
 - `portal-ui`: a customer-facing ecommerce storefront
-- `admin-ui`: a credential-gated backoffice console
+- `admin-ui`: an identity-protected backoffice console
 - Spring Cloud Gateway as the API entry point
-- Product, order, notification, and search microservices
-- PostgreSQL for product and order persistence
+- Product, order, customer, notification, and search microservices
+- PostgreSQL for product, order, customer, and identity persistence
 - Kafka for asynchronous order events
 - OpenSearch for product discovery, faceting, relevance tuning, and search suggestions
+- an OIDC identity provider for JWT authentication, client separation, and role/group-based access
 - Mailpit for local SMTP capture and email inspection
 - Docker Compose for infrastructure and full-stack container runs
 - GitHub Actions for backend and frontend build verification
@@ -22,7 +23,7 @@ The frontend split is intentional:
 - `portal-ui` is for browsing products, managing a cart, checking out, and tracking orders
 - `admin-ui` is for customers, orders, products, search operations, access control, and integration oversight
 - the split preserves a clean boundary between public commerce flows and administrative controls
-- the current admin credential gate is intentionally documented as a frontend-only control until backend authentication exists
+- identity clients, groups, and roles now separate customer and admin access
 
 ## Learning Docs
 
@@ -44,11 +45,16 @@ If you want to study the codebase in depth, start with the learning docs:
 graph TD
     PUI[Customer Portal UI\n5173] --> GW[API Gateway\n8080]
     AUI[Admin UI\n5174] --> GW
+    IDP[Identity Provider\n8180] --> PUI
+    IDP --> AUI
     GW --> PS[Product Service\n8081]
     GW --> OS[Order Service\n8082]
+    GW --> CS[Customer Service\n8085]
     GW --> SS[Search Service\n8084]
     OS --> PS
     PS --> K[(Kafka\n9092)]
+    CS --> K
+    CS --> IDP
     K --> SS
     OS --> K[(Kafka\n9092)]
     K --> NS[Notification Service\n8083]
@@ -56,6 +62,8 @@ graph TD
     SS --> OP[(OpenSearch\n9200)]
     PS --> PDB[(Product PostgreSQL\n5433)]
     OS --> ODB[(Order PostgreSQL\n5434)]
+    CS --> CDB[(Customer PostgreSQL\n5435)]
+    IDP --> KDB[(Identity PostgreSQL\n5436)]
 ```
 
 ## Repository Structure
@@ -69,8 +77,10 @@ orderflow/
 │   ├── api-gateway/
 │   ├── product-service/
 │   ├── order-service/
+│   ├── customer-service/
 │   ├── notification-service/
-│   └── search-service/
+│   ├── search-service/
+│   └── infra/identity-provider/
 ├── frontend/
 │   ├── portal-ui/
 │   └── admin-ui/
@@ -94,6 +104,7 @@ orderflow/
 - Spring Validation
 - Spring Kafka
 - Spring Cloud Gateway
+- Spring Security OAuth2 Resource Server
 - OpenSearch REST API via Spring `RestClient`
 - PostgreSQL
 - MapStruct
@@ -117,6 +128,7 @@ orderflow/
 - Apache Kafka
 - PostgreSQL
 - OpenSearch
+- OIDC identity provider
 - Mailpit
 
 ### CI/CD
@@ -132,10 +144,14 @@ orderflow/
 | Order Service | `8082` |
 | Notification Service | `8083` |
 | Search Service | `8084` |
+| Customer Service | `8085` |
 | Portal UI | `5173` |
 | Admin UI | `5174` |
+| Identity Provider | `8180` |
 | Product PostgreSQL | `5433` |
 | Order PostgreSQL | `5434` |
+| Customer PostgreSQL | `5435` |
+| Identity PostgreSQL | `5436` |
 | Kafka | `9092` |
 | OpenSearch | `9200` |
 | OpenSearch Performance API | `9600` |
@@ -152,7 +168,8 @@ Purpose:
 
 - customer-facing storefront for browsing active products
 - cart and checkout flow backed by the order-service APIs
-- self-service order lookup and status tracking
+- customer registration, sign-in, and account-backed checkout
+- self-service order lookup for guests plus owned order history for signed-in customers
 - clear separation from internal administrative workflows
 
 ### Admin UI
@@ -165,7 +182,7 @@ Purpose:
 - product CRUD management through the same gateway-backed APIs used by the storefront
 - search workbench for facet inspection, tuning visibility, and manual reindex controls
 - access control, credential boundary, and runtime integration visibility
-- a future home for server-enforced RBAC, audit trails, and identity integration
+- an identity-protected surface that requires the `admin` access scope
 
 ## Backend Services
 
@@ -206,6 +223,9 @@ Endpoints:
 
 - `POST /api/orders`
 - `GET /api/orders`
+- `GET /api/orders/me`
+- `GET /api/orders/lookup`
+- `GET /api/orders/lookup/{id}`
 - `GET /api/orders/{id}`
 
 ### Notification Service
@@ -224,6 +244,28 @@ Responsibilities:
 Status endpoint:
 
 - `GET /api/notifications/status`
+
+### Customer Service
+
+Base URL: `http://localhost:8085`
+
+Responsibilities:
+
+- register and manage customer profiles
+- create and update customer identities through the shared identity provider
+- publish customer lifecycle events to Kafka
+- track password lifecycle dates for expiring and expired notifications
+- keep customer business data separate from credential storage
+
+Endpoints:
+
+- `POST /api/customers/register`
+- `GET /api/customers/me`
+- `GET /api/customers`
+- `GET /api/customers/{customerId}`
+- `PUT /api/customers/{customerId}`
+- `DELETE /api/customers/{customerId}`
+- `POST /api/customers/{customerId}/password`
 
 ### Search Service
 
@@ -258,9 +300,19 @@ Routes:
 - `/api/products/**` -> `product-service`
 - `/api/categories/**` -> `product-service`
 - `/api/orders/**` -> `order-service`
+- `/api/customers/**` -> `customer-service`
 - `/api/search/**` -> `search-service`
 
 Both frontends proxy their `/api/*` requests through the gateway.
+
+The gateway also validates JWTs from the local OIDC identity provider and currently protects:
+
+- product write operations
+- customer self-service profile access
+- customer-owned order history and order detail routes
+- customer management APIs
+- search tuning, synonym management, and reindex APIs
+- other non-public routes by default
 
 ## Kafka Topics
 
@@ -321,6 +373,32 @@ Search indexing:
 - Consumer: `search-service`
 - removes deleted products from the OpenSearch index
 
+Customer identity and lifecycle:
+
+- Topic: `customer.registered`
+- Publisher: `customer-service`
+- Trigger: successful customer registration through the identity provider plus local profile persistence
+
+- Topic: `customer.upserted`
+- Publisher: `customer-service`
+- Trigger: customer create and update flows
+
+- Topic: `customer.deleted`
+- Publisher: `customer-service`
+- Trigger: customer deletion in the identity provider plus local profile removal
+
+- Topic: `customer.password.changed`
+- Publisher: `customer-service`
+- Trigger: password reset or change through the customer-service API
+
+- Topic: `customer.password.expiring`
+- Publisher: `customer-service`
+- Trigger: scheduled password-expiry window detection
+
+- Topic: `customer.password.expired`
+- Publisher: `customer-service`
+- Trigger: scheduled detection of already expired passwords
+
 ## Search Capabilities
 
 - search results include live facet data for:
@@ -356,6 +434,7 @@ Swagger UI is enabled on every backend service:
 - Order Service: `http://localhost:8082/swagger-ui.html`
 - Notification Service: `http://localhost:8083/swagger-ui.html`
 - Search Service: `http://localhost:8084/swagger-ui.html`
+- Customer Service: `http://localhost:8085/swagger-ui.html`
 
 ## Local Run Instructions
 
@@ -372,11 +451,14 @@ Open:
 - Portal UI: `http://localhost:5173`
 - Admin UI: `http://localhost:5174`
 - Mailpit UI: `http://localhost:8025`
+- OIDC Realm Metadata: `http://localhost:8180/realms/oflio`
+- Identity Admin Console: `http://localhost:8180/admin/`
 - API Gateway: `http://localhost:8080`
 - Product Service Swagger: `http://localhost:8081/swagger-ui.html`
 - Order Service Swagger: `http://localhost:8082/swagger-ui.html`
 - Notification Service Swagger: `http://localhost:8083/swagger-ui.html`
 - Search Service Swagger: `http://localhost:8084/swagger-ui.html`
+- Customer Service Swagger: `http://localhost:8085/swagger-ui.html`
 - Category API through gateway: `http://localhost:8080/api/categories`
 - Product search through gateway: `http://localhost:8080/api/search/products`
 - OpenSearch API: `http://localhost:9200`
@@ -385,7 +467,7 @@ Useful commands:
 
 ```bash
 docker compose ps
-docker compose logs -f api-gateway product-service order-service search-service notification-service portal-ui admin-ui
+docker compose logs -f api-gateway product-service order-service customer-service search-service notification-service portal-ui admin-ui keycloak
 docker compose down
 docker compose down -v
 ```
@@ -394,24 +476,36 @@ Container wiring details:
 
 - `portal-ui` serves the customer storefront on port `5173`
 - `admin-ui` serves the restricted backoffice on port `5174`
+- `customer-service` exposes customer lifecycle APIs on port `8085`
+- the local identity provider serves OIDC endpoints and the admin console on port `8180`
 - `search-service` reindexes the seeded product catalog on startup so `/shop` is searchable immediately
 - OpenSearch runs as a single-node local development container with security disabled for simplicity
 - both frontend containers proxy `/api/*` to `api-gateway`
-- `admin-ui` bakes its credential gate from `ORDERFLOW_ADMIN_EMAIL` and `ORDERFLOW_ADMIN_PASSWORD` at build time
+- both frontends are configured for distinct identity clients: `oflio-portal-ui` and `oflio-admin-ui`
 - `product-service` seeds a sample catalog of 50 products across 10 categories on startup unless `ORDERFLOW_CATALOG_SEED_ENABLED=false`
 - category reference data is normalized in a dedicated `categories` table and products store `category_code`
 - `notification-service` delivers order confirmation emails to Mailpit over SMTP in local development
-- backend services communicate over Docker service names such as `product-service`, `order-service`, `product-db`, `order-db`, and `kafka`
+- backend services communicate over Docker service names such as `product-service`, `order-service`, `customer-service`, the identity-provider service, and `kafka`
 
-Default admin credentials for local demo builds:
+Default local realm users:
 
-- Email: `admin@orderflow.local`
-- Password: `OrderFlow!Admin123`
+- Backoffice admin:
+  - username/email: `admin@oflio.local`
+  - password: `Admin123!`
+- Storefront customer:
+  - username/email: `customer@oflio.local`
+  - password: `Customer123!`
+- Identity bootstrap admin:
+  - username: `admin`
+  - password: `admin`
 
-Override them before building the admin container if needed:
+Frontend identity wiring:
 
 ```bash
-ORDERFLOW_ADMIN_EMAIL=ops@example.com ORDERFLOW_ADMIN_PASSWORD='ChangeMe123!' docker compose up --build -d admin-ui
+VITE_AUTH_URL=http://localhost:8180
+VITE_AUTH_REALM=oflio
+VITE_AUTH_CLIENT_ID=oflio-admin-ui
+VITE_REQUIRED_SCOPE=admin
 ```
 
 ### Option B: Run from source with Docker infrastructure only
@@ -419,7 +513,7 @@ ORDERFLOW_ADMIN_EMAIL=ops@example.com ORDERFLOW_ADMIN_PASSWORD='ChangeMe123!' do
 Start only the infrastructure:
 
 ```bash
-docker compose up -d product-db order-db kafka opensearch mailpit
+docker compose up -d product-db order-db customer-db keycloak-db kafka opensearch mailpit keycloak
 ```
 
 Then start the backend services from source.
@@ -442,10 +536,17 @@ In a third terminal:
 
 ```bash
 cd backend
-./gradlew :notification-service:bootRun
+./gradlew :customer-service:bootRun
 ```
 
 In a fourth terminal:
+
+```bash
+cd backend
+./gradlew :notification-service:bootRun
+```
+
+In a fifth terminal:
 
 ```bash
 cd backend
@@ -473,6 +574,7 @@ Open:
 - Portal UI: `http://localhost:5173`
 - Admin UI: `http://localhost:5174`
 - Mailpit UI: `http://localhost:8025`
+- OIDC Realm Metadata: `http://localhost:8180/realms/oflio`
 
 ## Notification Templates
 
@@ -527,7 +629,7 @@ Mailpit also exposes a REST API for automated checks:
 
 - `http://localhost:8025/api/v1/`
 
-If you want different local admin credentials for the source build:
+If you want local frontend identity overrides for the source build:
 
 ```bash
 cd frontend/admin-ui
@@ -536,8 +638,10 @@ cp .env.example .env
 
 Then update:
 
-- `VITE_ADMIN_EMAIL`
-- `VITE_ADMIN_PASSWORD`
+- `VITE_AUTH_URL`
+- `VITE_AUTH_REALM`
+- `VITE_AUTH_CLIENT_ID`
+- `VITE_REQUIRED_SCOPE`
 
 ## Build Commands
 
@@ -594,7 +698,7 @@ Each backend image uses a multi-stage Docker build that compiles the target Spri
 - bean validation
 - OpenAPI metadata per service
 - distinct customer and admin frontend boundaries
-- explicit documentation of the current auth boundary instead of hiding the limitation
+- distinct identity clients, roles, and groups for customer and admin access boundaries
 
 ## Learning Objectives
 
@@ -608,6 +712,8 @@ OrderFlow is designed to help you practice:
 - PostgreSQL persistence with JPA
 - React form handling and route-driven UI structure
 - splitting customer and administrative frontend concerns early
+- separating identity from customer business data
+- validating OIDC JWTs at the gateway edge
 - designing a backoffice around real backend constraints instead of placeholder navigation
 - end-to-end local development with Docker Compose
 - CI automation with GitHub Actions
@@ -622,16 +728,18 @@ Current simplifications include:
 - there is no compensation flow or saga orchestration if a later reservation fails
 - notification emails are delivered locally through Mailpit and can be switched to preview-only mode with configuration
 - local JPA auto-update is used instead of a migration tool
-- admin-ui authentication is enforced in the frontend only until JWT or Keycloak is added server-side
-- customer records are derived from orders because there is no dedicated customer service yet
+- gateway JWT enforcement is now in place, and customer-service plus order-service also enforce scope and ownership checks for customer-facing resources
+- product-service, search-service, and notification-service still rely primarily on the gateway edge for authorization
+- password-expiry events are currently driven by customer-service lifecycle timestamps rather than native identity-provider event listeners
 - order review is available in admin-ui, but status mutation is not yet exposed by the backend
 
 ## Future Enhancements
 
 Placeholders for future expansion:
 
-- JWT Authentication
-- Keycloak
+- customer self-service account pages
+- identity-provider abstraction hardening
+- finer-grained authorization policies across catalog, customer, and search operations
 - Inventory Service
 - Email Integration
 - Monitoring
@@ -654,7 +762,9 @@ GitHub Actions runs:
 ## Suggested Demo Flow
 
 1. Start the stack with `docker compose up --build -d`.
-2. Open `admin-ui`, sign in with the configured credentials, and create a few active products.
-3. Open `portal-ui`, browse the catalog, add items to the cart, and submit an order.
-4. Return to `admin-ui` to review customers, orders, and product inventory from the backoffice.
-5. Check `notification-service` logs to confirm the `order.created` event was consumed.
+2. Open `admin-ui`, sign in with `admin@oflio.local / Admin123!`, and create a few active products.
+3. Open `portal-ui`, register a new customer account or sign in as `customer@oflio.local / Customer123!`.
+4. Place one order while signed in and one order as a guest to exercise both customer-owned history and guest lookup.
+5. Return to `portal-ui /account` and `portal-ui /track-order` to verify the owned-order and guest-order flows separately.
+6. Return to `admin-ui` to review customers, orders, and product inventory from the backoffice.
+7. Check `notification-service` logs or Mailpit to confirm the `order.created` event was consumed and the email was delivered.

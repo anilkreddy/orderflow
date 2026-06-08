@@ -6,7 +6,8 @@ import { z } from 'zod';
 import { EmptyState } from '../components/EmptyState';
 import { LoadingPanel } from '../components/LoadingPanel';
 import { SectionHeading } from '../components/SectionHeading';
-import { orderApi, productApi, toApiMessage } from '../lib/api';
+import { customerApi, orderApi, productApi, toApiMessage } from '../lib/api';
+import { useCustomerAuth } from '../lib/auth';
 import { useCart } from '../lib/cart';
 import { formatCurrency } from '../lib/format';
 import type { Product } from '../types';
@@ -21,6 +22,7 @@ type CheckoutValues = z.infer<typeof checkoutSchema>;
 export function CheckoutPage() {
   const navigate = useNavigate();
   const { items, clearCart } = useCart();
+  const { isAuthenticated, hasRequiredScope } = useCustomerAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -28,6 +30,7 @@ export function CheckoutPage() {
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<CheckoutValues>({
     resolver: zodResolver(checkoutSchema),
@@ -38,10 +41,19 @@ export function CheckoutPage() {
   });
 
   useEffect(() => {
-    async function loadProducts() {
+    async function loadCheckoutContext() {
       try {
-        const data = await productApi.list();
-        setProducts(data);
+        const productPromise = productApi.list();
+        const customerPromise = isAuthenticated && hasRequiredScope ? customerApi.getCurrent() : Promise.resolve(null);
+        const [productData, customerProfile] = await Promise.all([productPromise, customerPromise]);
+
+        setProducts(productData);
+        if (customerProfile) {
+          reset({
+            customerName: `${customerProfile.firstName} ${customerProfile.lastName}`.trim(),
+            customerEmail: customerProfile.email,
+          });
+        }
         setSubmitError(null);
       } catch (loadError) {
         setSubmitError(toApiMessage(loadError, 'Unable to load checkout details'));
@@ -50,8 +62,8 @@ export function CheckoutPage() {
       }
     }
 
-    void loadProducts();
-  }, []);
+    void loadCheckoutContext();
+  }, [hasRequiredScope, isAuthenticated, reset]);
 
   const cartLines = useMemo(() => {
     return items
@@ -75,7 +87,8 @@ export function CheckoutPage() {
         items: cartLines.map((line) => ({ productId: line.product.id, quantity: line.item.quantity })),
       });
       clearCart();
-      navigate(`/orders/${order.id}`);
+      const guestEmail = !(isAuthenticated && hasRequiredScope) ? `?email=${encodeURIComponent(values.customerEmail)}` : '';
+      navigate(`/orders/${order.orderCode}${guestEmail}`);
     } catch (error) {
       setSubmitError(toApiMessage(error, 'Unable to place your order'));
     }
@@ -106,7 +119,9 @@ export function CheckoutPage() {
       <SectionHeading
         eyebrow="Secure Checkout"
         title="Confirm your order"
-        description="This guest checkout creates a live order, reserves inventory in the backend, and returns a real order number."
+        description={isAuthenticated && hasRequiredScope
+          ? 'You are signed in, so this order will be attached to your customer account automatically.'
+          : 'This guest checkout creates a live order, reserves inventory in the backend, and can still be tracked by checkout email.'}
       />
 
       <form className="mt-8 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]" onSubmit={onSubmit}>
@@ -124,7 +139,7 @@ export function CheckoutPage() {
               <label className="grid gap-2 text-sm font-medium text-slate-700">
                 Email address
                 <span className="field-shell rounded-[22px] bg-white px-4 py-3 shadow-[0_12px_25px_rgba(15,23,42,0.04)]">
-                  <input className="w-full bg-transparent outline-none" placeholder="maya@example.com" {...register('customerEmail')} />
+                  <input className="w-full bg-transparent outline-none" placeholder="maya@example.com" {...register('customerEmail')} readOnly={isAuthenticated && hasRequiredScope} />
                 </span>
                 {errors.customerEmail ? <span className="text-sm text-rose-700">{errors.customerEmail.message}</span> : null}
               </label>
@@ -137,7 +152,7 @@ export function CheckoutPage() {
               {[
                 'Customer name and email',
                 'Selected products and quantities',
-                'Total amount and order status',
+                isAuthenticated && hasRequiredScope ? 'Customer-owned order history' : 'Guest order lookup by email',
               ].map((item) => (
                 <div key={item} className="rounded-[24px] bg-white px-4 py-4 shadow-[0_12px_25px_rgba(15,23,42,0.05)]">
                   {item}

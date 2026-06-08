@@ -1,0 +1,70 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: customer-service
+  datasource:
+    url: ${CUSTOMER_DB_URL:jdbc:postgresql://localhost:5435/customer_db}
+    username: ${CUSTOMER_DB_USERNAME:customer_user}
+    password: ${CUSTOMER_DB_PASSWORD:customer_pass}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.orderflow.customer: INFO
+    org.springframework.web: INFO
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+application:
+  kafka:
+    customer-registered-topic: customer.registered
+    customer-upserted-topic: customer.upserted
+    customer-deleted-topic: customer.deleted
+    customer-password-changed-topic: customer.password.changed
+    customer-password-expiring-topic: customer.password.expiring
+    customer-password-expired-topic: customer.password.expired
+  security:
+    external-issuer-uri: ${AUTH_EXTERNAL_ISSUER_URI:http://localhost:8180/realms/oflio}
+    internal-jwk-set-uri: ${AUTH_INTERNAL_JWK_SET_URI:http://localhost:8180/realms/oflio/protocol/openid-connect/certs}
+
+identity:
+  admin:
+    server-url: ${IDENTITY_SERVER_URL:http://localhost:8180}
+    admin-realm: ${IDENTITY_ADMIN_REALM:master}
+    realm: ${IDENTITY_REALM:oflio}
+    username: ${IDENTITY_ADMIN_USERNAME:admin}
+    password: ${IDENTITY_ADMIN_PASSWORD:admin}
+    client-id: ${IDENTITY_ADMIN_CLIENT_ID:admin-cli}
+    customer-default-group-path: ${IDENTITY_CUSTOMER_DEFAULT_GROUP_PATH:/customers/registered}
+
+orderflow:
+  customer:
+    password:
+      validity-days: ${ORDERFLOW_CUSTOMER_PASSWORD_VALIDITY_DAYS:90}
+      expiring-window-days: ${ORDERFLOW_CUSTOMER_PASSWORD_EXPIRING_WINDOW_DAYS:7}
+    password-event-check:
+      enabled: ${ORDERFLOW_CUSTOMER_PASSWORD_EVENT_CHECK_ENABLED:true}
+      fixed-delay: ${ORDERFLOW_CUSTOMER_PASSWORD_EVENT_CHECK_DELAY:PT6H}

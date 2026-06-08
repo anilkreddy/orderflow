@@ -41,6 +41,46 @@ services:
       timeout: 5s
       retries: 5
 
+  customer-db:
+    image: postgres:16-alpine
+    container_name: orderflow-customer-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: customer_db
+      POSTGRES_USER: customer_user
+      POSTGRES_PASSWORD: customer_pass
+    ports:
+      - "5435:5432"
+    volumes:
+      - customer-db-data:/var/lib/postgresql/data
+    networks:
+      - orderflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U customer_user -d customer_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak-db:
+    image: postgres:16-alpine
+    container_name: orderflow-keycloak-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak_db
+      POSTGRES_USER: keycloak_user
+      POSTGRES_PASSWORD: keycloak_pass
+    ports:
+      - "5436:5432"
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql/data
+    networks:
+      - orderflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak_user -d keycloak_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   kafka:
     image: apache/kafka:4.1.0
     container_name: orderflow-kafka
@@ -103,6 +143,29 @@ services:
     networks:
       - orderflow-network
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    container_name: orderflow-keycloak
+    restart: unless-stopped
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-admin}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak_db
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: keycloak_pass
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./backend/infra/identity-provider:/opt/keycloak/data/import:ro
+    networks:
+      - orderflow-network
+
   product-service:
     build:
       context: ./backend
@@ -120,6 +183,8 @@ services:
       PRODUCT_DB_PASSWORD: product_pass
       ORDERFLOW_CATALOG_SEED_ENABLED: ${ORDERFLOW_CATALOG_SEED_ENABLED:-true}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      AUTH_EXTERNAL_ISSUER_URI: http://localhost:8180/realms/oflio
+      AUTH_INTERNAL_JWK_SET_URI: http://keycloak:8080/realms/oflio/protocol/openid-connect/certs
     ports:
       - "8081:8081"
     networks:
@@ -144,6 +209,8 @@ services:
       ORDER_DB_PASSWORD: order_pass
       PRODUCT_SERVICE_BASE_URL: http://product-service:8081
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      AUTH_EXTERNAL_ISSUER_URI: http://localhost:8180/realms/oflio
+      AUTH_INTERNAL_JWK_SET_URI: http://keycloak:8080/realms/oflio/protocol/openid-connect/certs
     ports:
       - "8082:8082"
     networks:
@@ -174,6 +241,38 @@ services:
     networks:
       - orderflow-network
 
+  customer-service:
+    build:
+      context: ./backend
+      dockerfile: customer-service/Dockerfile
+    container_name: orderflow-customer-service
+    restart: unless-stopped
+    depends_on:
+      customer-db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    environment:
+      CUSTOMER_DB_URL: jdbc:postgresql://customer-db:5432/customer_db
+      CUSTOMER_DB_USERNAME: customer_user
+      CUSTOMER_DB_PASSWORD: customer_pass
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      IDENTITY_SERVER_URL: ${IDENTITY_SERVER_URL:-http://keycloak:8080}
+      IDENTITY_ADMIN_REALM: master
+      IDENTITY_REALM: oflio
+      IDENTITY_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      IDENTITY_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-admin}
+      IDENTITY_ADMIN_CLIENT_ID: admin-cli
+      IDENTITY_CUSTOMER_DEFAULT_GROUP_PATH: /customers/registered
+      AUTH_EXTERNAL_ISSUER_URI: http://localhost:8180/realms/oflio
+      AUTH_INTERNAL_JWK_SET_URI: http://keycloak:8080/realms/oflio/protocol/openid-connect/certs
+    ports:
+      - "8085:8085"
+    networks:
+      - orderflow-network
+
   search-service:
     build:
       context: ./backend
@@ -182,6 +281,8 @@ services:
     restart: unless-stopped
     depends_on:
       product-service:
+        condition: service_started
+      customer-service:
         condition: service_started
       kafka:
         condition: service_started
@@ -208,12 +309,19 @@ services:
         condition: service_started
       order-service:
         condition: service_started
+      customer-service:
+        condition: service_started
       search-service:
+        condition: service_started
+      keycloak:
         condition: service_started
     environment:
       PRODUCT_SERVICE_URL: http://product-service:8081
       ORDER_SERVICE_URL: http://order-service:8082
+      CUSTOMER_SERVICE_URL: http://customer-service:8085
       SEARCH_SERVICE_URL: http://search-service:8084
+      AUTH_EXTERNAL_ISSUER_URI: http://localhost:8180/realms/oflio
+      AUTH_INTERNAL_JWK_SET_URI: http://keycloak:8080/realms/oflio/protocol/openid-connect/certs
     ports:
       - "8080:8080"
     networks:
@@ -225,6 +333,10 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ""
+        VITE_AUTH_URL: http://localhost:8180
+        VITE_AUTH_REALM: oflio
+        VITE_AUTH_CLIENT_ID: oflio-portal-ui
+        VITE_REQUIRED_SCOPE: customer
     container_name: orderflow-portal-ui
     restart: unless-stopped
     depends_on:
@@ -241,8 +353,10 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ""
-        VITE_ADMIN_EMAIL: ${ORDERFLOW_ADMIN_EMAIL:-admin@orderflow.local}
-        VITE_ADMIN_PASSWORD: ${ORDERFLOW_ADMIN_PASSWORD:-OrderFlow!Admin123}
+        VITE_AUTH_URL: http://localhost:8180
+        VITE_AUTH_REALM: oflio
+        VITE_AUTH_CLIENT_ID: oflio-admin-ui
+        VITE_REQUIRED_SCOPE: admin
     container_name: orderflow-admin-ui
     restart: unless-stopped
     depends_on:
@@ -260,5 +374,7 @@ networks:
 volumes:
   product-db-data:
   order-db-data:
+  customer-db-data:
+  keycloak-db-data:
   kafka-data:
   opensearch-data:

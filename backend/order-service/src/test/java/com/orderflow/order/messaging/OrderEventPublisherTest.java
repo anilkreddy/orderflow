@@ -35,6 +35,7 @@ class OrderEventPublisherTest {
     void publishesOrderCreatedEventWithLineItemsAndSummary() {
         Order order = Order.builder()
                 .id(42L)
+                .orderCode("OFL-20260607-ABC12345")
                 .customerName("Alex Johnson")
                 .customerEmail("alex@example.com")
                 .totalAmount(BigDecimal.valueOf(249.99))
@@ -56,6 +57,7 @@ class OrderEventPublisherTest {
 
         OrderCreatedEvent event = eventCaptor.getValue();
         assertThat(event.orderId()).isEqualTo(42L);
+        assertThat(event.orderCode()).isEqualTo("OFL-20260607-ABC12345");
         assertThat(event.customerEmail()).isEqualTo("alex@example.com");
         assertThat(event.subtotalAmount()).isEqualTo(BigDecimal.valueOf(249.99));
         assertThat(event.taxAmount()).isEqualByComparingTo(BigDecimal.ZERO);

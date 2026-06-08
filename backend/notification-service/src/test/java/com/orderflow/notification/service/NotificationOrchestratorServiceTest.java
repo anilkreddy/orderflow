@@ -52,6 +52,7 @@ class NotificationOrchestratorServiceTest {
         OrderCreatedEvent event = new OrderCreatedEvent(
                 UUID.randomUUID(),
                 42L,
+                "OFL-20260607-ABC12345",
                 "Alex Johnson",
                 "alex@example.com",
                 BigDecimal.valueOf(229.99),
@@ -72,11 +73,12 @@ class NotificationOrchestratorServiceTest {
 
         ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
         verify(emailTemplateService).renderTemplate(org.mockito.ArgumentMatchers.eq(EmailTemplateType.ORDER_CONFIRMATION), variablesCaptor.capture());
-        verify(emailService).sendHtmlEmail("alex@example.com", "Oflio Commerce order confirmation #42", "<html>confirmation</html>");
+        verify(emailService).sendHtmlEmail("alex@example.com", "Oflio Commerce order confirmation OFL-20260607-ABC12345", "<html>confirmation</html>");
 
         Map<String, Object> variables = variablesCaptor.getValue();
         assertThat(variables).containsEntry("customerName", "Alex Johnson");
         assertThat(variables).containsEntry("orderId", 42L);
+        assertThat(variables).containsEntry("orderCode", "OFL-20260607-ABC12345");
         assertThat(variables).containsEntry("status", "CONFIRMED");
         assertThat(variables.get("totalAmount")).isEqualTo("$249.99");
         assertThat(variables.get("subtotalAmount")).isEqualTo("$229.99");
@@ -101,6 +103,7 @@ class NotificationOrchestratorServiceTest {
         OrderCancelledEvent event = new OrderCancelledEvent(
                 UUID.randomUUID(),
                 57L,
+                "OFL-20260607-CANCEL57",
                 "Casey Reed",
                 "casey@example.com",
                 "Customer requested cancellation",
@@ -108,7 +111,7 @@ class NotificationOrchestratorServiceTest {
 
         notificationOrchestratorService.handleOrderCancelled(event);
 
-        verify(emailService).sendHtmlEmail("casey@example.com", "Oflio Commerce order cancelled #57", "<html>cancelled</html>");
+        verify(emailService).sendHtmlEmail("casey@example.com", "Oflio Commerce order cancelled OFL-20260607-CANCEL57", "<html>cancelled</html>");
     }
 
     @Test

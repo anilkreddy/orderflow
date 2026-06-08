@@ -1,71 +1,175 @@
-import { createContext, useContext, useMemo, useState, type PropsWithChildren } from 'react';
-import type { AdminCredentials, AdminSession } from '../types';
+import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import type { AdminSession } from '../types';
+import { createIdentityClient } from './identity-client';
 
-const SESSION_STORAGE_KEY = 'orderflow_admin_session';
-const DEFAULT_ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL ?? 'admin@orderflow.local';
-const DEFAULT_ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD ?? 'OrderFlow!Admin123';
+const identityClient = createIdentityClient({
+  url: import.meta.env.VITE_AUTH_URL ?? 'http://localhost:8180',
+  realm: import.meta.env.VITE_AUTH_REALM ?? 'oflio',
+  clientId: import.meta.env.VITE_AUTH_CLIENT_ID ?? 'oflio-admin-ui',
+});
+
+const requiredScope = import.meta.env.VITE_REQUIRED_SCOPE ?? 'admin';
+const clientId = import.meta.env.VITE_AUTH_CLIENT_ID ?? 'oflio-admin-ui';
+
+const roleToScope: Record<string, string> = {
+  CUSTOMER: 'customer',
+  'storefront-access': 'customer',
+  BACKOFFICE_ADMIN: 'admin',
+  'admin-ui-access': 'admin',
+  'catalog-manager': 'catalog_manager',
+  'order-manager': 'order_manager',
+  'customer-manager': 'customer_manager',
+  'search-manager': 'search_manager',
+};
 
 interface AuthContextValue {
-  adminEmail: string;
+  ready: boolean;
   isAuthenticated: boolean;
+  hasRequiredScope: boolean;
   session: AdminSession | null;
-  signIn: (credentials: AdminCredentials) => void;
-  signOut: () => void;
+  errorMessage: string | null;
+  signIn: (forcePrompt?: boolean) => Promise<void>;
+  signOut: () => Promise<void>;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function readStoredSession() {
-  if (typeof window === 'undefined') {
+function readScopes(token: Record<string, unknown>, clientRoles: string[], realmRoles: string[]) {
+  const directScopes = [
+    ...(typeof token.scope === 'string' ? token.scope.split(' ') : []),
+    ...((Array.isArray(token.scp) ? token.scp : []) as string[]),
+  ].filter((scope) => typeof scope === 'string' && scope.length > 0);
+
+  const mappedScopes = [...clientRoles, ...realmRoles]
+    .map((role) => roleToScope[role])
+    .filter((scope): scope is string => Boolean(scope));
+
+  return Array.from(new Set([...directScopes, ...mappedScopes])).sort();
+}
+
+function buildSession(): AdminSession | null {
+  const token = identityClient.tokenParsed as Record<string, unknown> | undefined;
+  if (!token) {
     return null;
   }
 
-  const stored = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
-  if (!stored) {
-    return null;
-  }
+  const givenName = typeof token.given_name === 'string' ? token.given_name : '';
+  const familyName = typeof token.family_name === 'string' ? token.family_name : '';
+  const displayName = `${givenName} ${familyName}`.trim() || (typeof token.name === 'string' ? token.name : '') || 'Oflio User';
+  const email = typeof token.email === 'string' ? token.email : (typeof token.preferred_username === 'string' ? token.preferred_username : '');
+  const issuedAt = typeof token.iat === 'number' ? new Date(token.iat * 1000).toISOString() : new Date().toISOString();
 
-  try {
-    return JSON.parse(stored) as AdminSession;
-  } catch {
-    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    return null;
-  }
+  const clientRoles = ((token.resource_access as Record<string, { roles?: string[] }> | undefined)?.[clientId]?.roles ?? []).map((role) => role.toString());
+  const realmRoles = ((token.realm_access as { roles?: string[] } | undefined)?.roles ?? []).map((role) => role.toString());
+
+  return {
+    email,
+    displayName,
+    signedInAt: issuedAt,
+    scopes: readScopes(token, clientRoles, realmRoles),
+    clientRoles,
+    realmRoles,
+  };
+}
+
+function hasRequiredScope() {
+  const session = buildSession();
+  return session?.scopes.includes(requiredScope) ?? false;
+}
+
+export function getAdminAccessToken() {
+  return identityClient.token ?? null;
 }
 
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [session, setSession] = useState<AdminSession | null>(() => readStoredSession());
+  const [ready, setReady] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [session, setSession] = useState<AdminSession | null>(null);
+  const [allowed, setAllowed] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function initialize() {
+      try {
+        const isAuthenticated = await identityClient.init({
+          onLoad: 'check-sso',
+          pkceMethod: 'S256',
+          checkLoginIframe: false,
+        });
+
+        if (!active) {
+          return;
+        }
+
+        setAuthenticated(isAuthenticated);
+        const nextSession = isAuthenticated ? buildSession() : null;
+        setSession(nextSession);
+        const scopeAllowed = isAuthenticated ? hasRequiredScope() : false;
+        setAllowed(scopeAllowed);
+        setErrorMessage(isAuthenticated && !scopeAllowed ? 'This account does not have access to the Oflio Commerce backoffice.' : null);
+        setReady(true);
+      } catch {
+        if (!active) {
+          return;
+        }
+        setErrorMessage('Unable to initialize backoffice identity right now.');
+        setReady(true);
+      }
+    }
+
+    identityClient.onAuthSuccess = () => {
+      setAuthenticated(true);
+      const nextSession = buildSession();
+      setSession(nextSession);
+      const scopeAllowed = hasRequiredScope();
+      setAllowed(scopeAllowed);
+      setErrorMessage(scopeAllowed ? null : 'This account does not have access to the Oflio Commerce backoffice.');
+    };
+
+    identityClient.onAuthLogout = () => {
+      setAuthenticated(false);
+      setSession(null);
+      setAllowed(false);
+    };
+
+    identityClient.onTokenExpired = () => {
+      void identityClient.updateToken(30).catch(() => {
+        setAuthenticated(false);
+        setSession(null);
+        setAllowed(false);
+      });
+    };
+
+    void initialize();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      adminEmail: DEFAULT_ADMIN_EMAIL,
-      isAuthenticated: session !== null,
+      ready,
+      isAuthenticated: authenticated,
+      hasRequiredScope: allowed,
       session,
-      signIn: (credentials) => {
-        const email = credentials.email.trim().toLowerCase();
-        if (email !== DEFAULT_ADMIN_EMAIL.toLowerCase() || credentials.password !== DEFAULT_ADMIN_PASSWORD) {
-          throw new Error('Invalid credentials');
-        }
-
-        const nextSession: AdminSession = {
-          email: DEFAULT_ADMIN_EMAIL,
-          displayName: 'Oflio Commerce Admin',
-          signedInAt: new Date().toISOString(),
-        };
-
-        setSession(nextSession);
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
-        }
+      errorMessage,
+      signIn: async (forcePrompt = false) => {
+        setErrorMessage(null);
+        await identityClient.login({
+          redirectUri: `${window.location.origin}/dashboard`,
+          prompt: forcePrompt ? 'login' : undefined,
+        });
       },
-      signOut: () => {
-        setSession(null);
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
-        }
+      signOut: async () => {
+        await identityClient.logout({ redirectUri: `${window.location.origin}/login` });
       },
+      clearError: () => setErrorMessage(null),
     }),
-    [session],
+    [allowed, authenticated, errorMessage, ready, session],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -73,10 +177,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-
   if (!context) {
     throw new Error('useAuth must be used inside AuthProvider');
   }
-
   return context;
 }

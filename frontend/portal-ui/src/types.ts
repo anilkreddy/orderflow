@@ -39,6 +39,29 @@ export interface OrderPayload {
   items: OrderItemPayload[];
 }
 
+export interface CustomerRegistrationPayload {
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+}
+
+export interface CustomerProfile {
+  id: string;
+  identityUserId: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  enabled: boolean;
+  emailVerified: boolean;
+  registeredAt: string;
+  passwordChangedAt: string;
+  passwordExpiresAt: string;
+  updatedAt: string;
+}
+
 export interface OrderItem {
   id: number;
   productId: number;
@@ -97,6 +120,7 @@ export interface SearchSuggestionResponse {
 
 export interface Order {
   id: number;
+  orderCode: string;
   customerName: string;
   customerEmail: string;
   totalAmount: number;

@@ -1,12 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useCustomerAuth } from '../lib/auth';
 import { departments } from '../lib/catalog';
 import { useCart } from '../lib/cart';
-
-const utilityLinks = [
-  { to: '/shop', label: 'Shop all' },
-  { to: '/track-order', label: 'Track order' },
-];
 
 function resolvePageTitle(pathname: string) {
   if (pathname === '/') {
@@ -29,6 +25,14 @@ function resolvePageTitle(pathname: string) {
     return 'Checkout';
   }
 
+  if (pathname === '/register') {
+    return 'Create Account';
+  }
+
+  if (pathname === '/account') {
+    return 'My Account';
+  }
+
   if (pathname === '/track-order') {
     return 'Track Order';
   }
@@ -42,9 +46,16 @@ function resolvePageTitle(pathname: string) {
 
 export function AppLayout() {
   const { itemCount } = useCart();
+  const { ready, isAuthenticated, hasRequiredScope, session, authorizationMessage, signIn, signOut, clearMessage } = useCustomerAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [search, setSearch] = useState('');
+
+  const utilityLinks = [
+    { to: '/shop', label: 'Shop all' },
+    { to: '/track-order', label: hasRequiredScope ? 'Your orders' : 'Track order' },
+    ...(hasRequiredScope ? [{ to: '/account', label: 'Account' }] : [{ to: '/register', label: 'Create account' }]),
+  ];
 
   useEffect(() => {
     if (!location.pathname.startsWith('/shop')) {
@@ -104,7 +115,54 @@ export function AppLayout() {
               </button>
             </form>
 
-            <div className="flex items-center gap-3 self-end lg:self-auto">
+            <div className="flex flex-wrap items-center gap-3 self-end lg:self-auto lg:justify-end">
+              {authorizationMessage ? (
+                <button
+                  type="button"
+                  className="rounded-full border border-amber-200/60 bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-950"
+                  onClick={() => {
+                    clearMessage();
+                    void signIn(true);
+                  }}
+                >
+                  Switch account
+                </button>
+              ) : null}
+              {!ready ? (
+                <span className="rounded-full bg-white/10 px-4 py-3 text-xs font-semibold text-slate-200">Identity...</span>
+              ) : isAuthenticated && hasRequiredScope ? (
+                <>
+                  <NavLink
+                    to="/account"
+                    className="hidden rounded-full bg-white/10 px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/16 lg:inline-flex"
+                  >
+                    Hello, {session?.givenName ?? 'Customer'}
+                  </NavLink>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-3 rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14"
+                    onClick={() => void signOut()}
+                  >
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <NavLink
+                    to="/register"
+                    className="inline-flex items-center gap-3 rounded-full bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/16"
+                  >
+                    Create account
+                  </NavLink>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-3 rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14"
+                    onClick={() => void signIn(Boolean(authorizationMessage))}
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
               <NavLink
                 to="/cart"
                 className="inline-flex items-center gap-3 rounded-full bg-white px-5 py-3 text-sm font-semibold text-[#08162c] transition hover:bg-slate-100"
@@ -148,8 +206,9 @@ export function AppLayout() {
             </nav>
 
             <div className="flex flex-wrap items-center gap-3 text-xs font-medium uppercase tracking-[0.22em] text-slate-500">
+              {authorizationMessage ? <span className="text-amber-700">Storefront access is restricted to customer accounts</span> : null}
+              {hasRequiredScope ? <span>Signed-in customer checkout</span> : <span>Guest checkout enabled</span>}
               <span>Everyday savings</span>
-              <span>Fast reorder flow</span>
               <span>Track live orders</span>
             </div>
           </div>
@@ -166,7 +225,7 @@ export function AppLayout() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">Oflio</p>
             <h2 className="mt-4 font-display text-3xl font-semibold tracking-tight text-white">Marketplace-style shopping powered by Oflio Commerce services.</h2>
             <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300">
-              Customers can browse active products, build a basket, and submit live orders while backoffice management stays isolated in admin-ui.
+              Customers can browse active products, create accounts, and track their own orders while guest checkout stays available for casual shoppers.
             </p>
           </div>
           <div>
@@ -178,18 +237,13 @@ export function AppLayout() {
             </div>
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">Departments</p>
+            <p className="text-sm font-semibold text-white">Account</p>
             <div className="mt-4 grid gap-3 text-sm text-slate-300">
-              {departments.slice(0, 4).map((department) => (
-                <button
-                  key={department.key}
-                  type="button"
-                  className="text-left"
-                  onClick={() => navigate(`/shop?category=${encodeURIComponent(department.key)}`)}
-                >
-                  {department.label}
-                </button>
-              ))}
+              <NavLink to="/register">Create account</NavLink>
+              <NavLink to="/account">My account</NavLink>
+              <button type="button" className="text-left" onClick={() => void signIn()}>
+                Sign in
+              </button>
             </div>
           </div>
           <div>

@@ -44,7 +44,7 @@ export function OrderDetailsPage() {
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Order detail"
-        title={`Review order #${order.id}`}
+        title={`Review ${order.orderCode}`}
         description="Inspect customer context, line-level value, and fulfillment state from one operational detail page. This is intentionally structured as a support and operations view rather than a shopper receipt."
         action={<Link to="/orders" className="backoffice-button-secondary">Back to orders</Link>}
       />
@@ -53,7 +53,7 @@ export function OrderDetailsPage() {
         <MetricSummary label="Status" value={formatStatus(order.status)} note="Current backend lifecycle state" badge={<StatusPill tone={orderStatusTone(order.status)}>{formatStatus(order.status)}</StatusPill>} />
         <MetricSummary label="Order total" value={formatCurrency(order.totalAmount)} note="Captured basket value" />
         <MetricSummary label="Units ordered" value={formatNumber(totalUnits)} note={`${order.items.length} line items`} />
-        <MetricSummary label="Placed at" value={formatDateTime(order.createdAt)} note="Creation timestamp" />
+        <MetricSummary label="Placed at" value={formatDateTime(order.createdAt)} note={`Internal #${order.id}`} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_360px]">
@@ -97,6 +97,11 @@ export function OrderDetailsPage() {
               <h2 className="mt-1 font-display text-xl font-semibold text-slate-950">Buyer context</h2>
             </div>
             <div className="grid gap-3 px-5 py-5">
+              <div className="backoffice-surface-muted px-4 py-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Order code</div>
+                <div className="mt-2 font-semibold text-slate-950">{order.orderCode}</div>
+                <div className="mt-1 text-[12px] text-slate-500">Internal #{order.id}</div>
+              </div>
               <div className="backoffice-surface-muted px-4 py-4">
                 <div className="font-semibold text-slate-950">{order.customerName}</div>
                 <div className="mt-1 text-[12px] text-slate-500">{order.customerEmail}</div>

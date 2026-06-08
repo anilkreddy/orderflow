@@ -39,6 +39,7 @@ public class NotificationOrchestratorService {
         Map<String, Object> variables = baseVariables();
         variables.put("customerName", event.customerName());
         variables.put("orderId", event.orderId());
+        variables.put("orderCode", event.orderCode());
         variables.put("lineItems", buildOrderLineItems(event.lineItems()));
         variables.put("subtotalAmount", formatCurrency(event.subtotalAmount()));
         variables.put("taxAmount", formatCurrency(event.taxAmount()));
@@ -51,7 +52,7 @@ public class NotificationOrchestratorService {
                 event.eventId(),
                 EmailTemplateType.ORDER_CONFIRMATION,
                 event.customerEmail(),
-                "%s order confirmation #%s".formatted(mailProperties.getStoreName(), event.orderId()),
+                "%s order confirmation %s".formatted(mailProperties.getStoreName(), fallbackOrderReference(event.orderCode(), event.orderId())),
                 variables);
     }
 
@@ -59,13 +60,14 @@ public class NotificationOrchestratorService {
         Map<String, Object> variables = baseVariables();
         variables.put("customerName", event.customerName());
         variables.put("orderId", event.orderId());
+        variables.put("orderCode", event.orderCode());
         variables.put("cancellationReason", event.cancellationReason());
         variables.put("cancelledAt", formatTimestamp(event.cancelledAt()));
         sendNotification(
                 event.eventId(),
                 EmailTemplateType.ORDER_CANCELLED,
                 event.customerEmail(),
-                "%s order cancelled #%s".formatted(mailProperties.getStoreName(), event.orderId()),
+                "%s order cancelled %s".formatted(mailProperties.getStoreName(), fallbackOrderReference(event.orderCode(), event.orderId())),
                 variables);
     }
 
@@ -155,6 +157,13 @@ public class NotificationOrchestratorService {
         String initials = deriveInitials(productName, productId);
         return "https://placehold.co/72x72/eef4ff/0f172a?text="
                 + URLEncoder.encode(initials, StandardCharsets.UTF_8);
+    }
+
+    private String fallbackOrderReference(String orderCode, Long orderId) {
+        if (StringUtils.hasText(orderCode)) {
+            return orderCode;
+        }
+        return orderId == null ? "order" : "#" + orderId;
     }
 
     private String deriveInitials(String productName, Long productId) {

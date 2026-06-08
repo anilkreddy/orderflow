@@ -34,6 +34,9 @@ application:
   clients:
     product-service:
       base-url: ${PRODUCT_SERVICE_BASE_URL:http://localhost:8081}
+  security:
+    external-issuer-uri: ${AUTH_EXTERNAL_ISSUER_URI:http://localhost:8180/realms/oflio}
+    internal-jwk-set-uri: ${AUTH_INTERNAL_JWK_SET_URI:http://localhost:8180/realms/oflio/protocol/openid-connect/certs}
 
 logging:
   level:

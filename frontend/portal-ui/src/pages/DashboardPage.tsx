@@ -104,7 +104,7 @@ export function DashboardPage() {
               <tbody>
                 {recentOrders.map((order) => (
                   <tr key={order.id} className="rounded-2xl bg-slate-50">
-                    <td className="rounded-l-2xl px-3 py-4 text-sm font-semibold text-slate-900">#{order.id}</td>
+                    <td className="rounded-l-2xl px-3 py-4 text-sm font-semibold text-slate-900">{order.orderCode}</td>
                     <td className="px-3 py-4 text-sm text-slate-600">
                       <div>{order.customerName}</div>
                       <div className="mt-1 text-xs text-slate-500">{order.customerEmail}</div>

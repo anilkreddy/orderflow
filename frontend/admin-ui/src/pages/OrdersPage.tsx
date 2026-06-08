@@ -44,7 +44,8 @@ export function OrdersPage() {
         normalizedQuery.length === 0 ||
         order.customerName.toLowerCase().includes(normalizedQuery) ||
         order.customerEmail.toLowerCase().includes(normalizedQuery) ||
-        String(order.id).includes(normalizedQuery);
+        String(order.id).includes(normalizedQuery) ||
+        order.orderCode.toLowerCase().includes(normalizedQuery);
 
       return matchesStatus && matchesQuery;
     });
@@ -95,7 +96,7 @@ export function OrdersPage() {
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search order id, customer name, or email"
+                placeholder="Search order code, internal id, customer name, or email"
                 className="backoffice-search min-w-[280px]"
               />
             </div>
@@ -123,8 +124,8 @@ export function OrdersPage() {
                 {filteredOrders.map((order) => (
                   <tr key={order.id}>
                     <td>
-                      <div className="font-semibold text-slate-950">#{order.id}</div>
-                      <div className="mt-1 text-[12px] text-slate-500">{order.items.length} line item(s)</div>
+                      <div className="font-semibold text-slate-950">{order.orderCode}</div>
+                      <div className="mt-1 text-[12px] text-slate-500">Internal #{order.id} · {order.items.length} line item(s)</div>
                     </td>
                     <td>
                       <div className="font-medium text-slate-950">{order.customerName}</div>
@@ -184,7 +185,7 @@ export function OrdersPage() {
                   <div key={order.id} className="backoffice-surface-muted px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="font-semibold text-slate-950">Order #{order.id}</div>
+                        <div className="font-semibold text-slate-950">{order.orderCode}</div>
                         <div className="mt-1 text-[12px] text-slate-500">{order.customerName}</div>
                       </div>
                       <StatusPill tone={orderStatusTone(order.status)}>{formatStatus(order.status)}</StatusPill>

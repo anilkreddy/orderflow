@@ -22,6 +22,13 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.NOT_FOUND, exception.getMessage());
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException exception,
+                                                         HttpServletRequest request) {
+        log.error("Forbidden path={} message={}", request.getRequestURI(), exception.getMessage());
+        return buildResponse(HttpStatus.FORBIDDEN, exception.getMessage());
+    }
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException exception,
                                                                  HttpServletRequest request) {

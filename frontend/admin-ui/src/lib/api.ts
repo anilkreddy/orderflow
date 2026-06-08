@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type {
   Category,
+  CustomerProfile,
   Order,
   Product,
   ProductPayload,
@@ -10,12 +11,21 @@ import type {
   SearchSynonymPayload,
   SearchTuning,
 } from '../types';
+import { getAdminAccessToken } from './auth';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080',
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+api.interceptors.request.use((config) => {
+  const token = getAdminAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 export const productApi = {
@@ -114,6 +124,13 @@ export const orderApi = {
   },
   get: async (id: number): Promise<Order> => {
     const { data } = await api.get<Order>(`/api/orders/${id}`);
+    return data;
+  },
+};
+
+export const customerApi = {
+  list: async (): Promise<CustomerProfile[]> => {
+    const { data } = await api.get<CustomerProfile[]>('/api/customers');
     return data;
   },
 };

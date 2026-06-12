@@ -89,13 +89,12 @@ export function AppLayout() {
 
       <header className="sticky top-0 z-30 shadow-[0_18px_40px_rgba(8,22,44,0.16)]">
         <div className="bg-[#0b1730] text-white">
-          <div className="mx-auto flex max-w-[1480px] flex-col gap-4 px-4 py-4 md:px-6 lg:flex-row lg:items-center">
+          <div className="mx-auto flex max-w-[1480px] flex-col gap-4 px-4 py-4 md:px-6 lg:flex-row lg:items-start">
             <NavLink to="/" className="flex items-center gap-3">
               <span className="inline-flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#ffcd38] text-sm font-extrabold uppercase tracking-[0.28em] text-[#08162c]">
                 OF
               </span>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-300">Oflio Commerce</p>
                 <h1 className="font-display text-2xl font-semibold tracking-tight text-white">Oflio</h1>
               </div>
             </NavLink>
@@ -115,7 +114,7 @@ export function AppLayout() {
               </button>
             </form>
 
-            <div className="flex flex-wrap items-center gap-3 self-end lg:self-auto lg:justify-end">
+            <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto lg:justify-end">
               {authorizationMessage ? (
                 <button
                   type="button"
@@ -150,7 +149,7 @@ export function AppLayout() {
                 <>
                   <NavLink
                     to="/register"
-                    className="inline-flex items-center gap-3 rounded-full bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/16"
+                    className="inline-flex items-center justify-center gap-3 rounded-full border border-transparent bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/16"
                   >
                     Create account
                   </NavLink>
@@ -206,10 +205,7 @@ export function AppLayout() {
             </nav>
 
             <div className="flex flex-wrap items-center gap-3 text-xs font-medium uppercase tracking-[0.22em] text-slate-500">
-              {authorizationMessage ? <span className="text-amber-700">Storefront access is restricted to customer accounts</span> : null}
-              {hasRequiredScope ? <span>Signed-in customer checkout</span> : <span>Guest checkout enabled</span>}
-              <span>Everyday savings</span>
-              <span>Track live orders</span>
+              {/* Status badges intentionally removed per request. */}
             </div>
           </div>
         </div>

@@ -95,10 +95,12 @@
   ],
   "groups": [
     {
+      "id": "1c5d1154-509c-41ed-90e6-a639f2da8dd2",
       "name": "customers",
       "path": "/customers",
       "subGroups": [
         {
+          "id": "ca88dc6e-e482-4e85-8bdf-d6ce6ac06ddb",
           "name": "registered",
           "path": "/customers/registered",
           "realmRoles": [

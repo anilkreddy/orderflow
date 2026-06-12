@@ -59,6 +59,7 @@ identity:
     password: ${IDENTITY_ADMIN_PASSWORD:admin}
     client-id: ${IDENTITY_ADMIN_CLIENT_ID:admin-cli}
     customer-default-group-path: ${IDENTITY_CUSTOMER_DEFAULT_GROUP_PATH:/customers/registered}
+    customer-default-group-id: ${IDENTITY_CUSTOMER_DEFAULT_GROUP_ID:}
 
 orderflow:
   customer:

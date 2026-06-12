@@ -10,5 +10,6 @@ public record IdentityAdminProperties(
         String username,
         String password,
         String clientId,
-        String customerDefaultGroupPath) {
+        String customerDefaultGroupPath,
+        String customerDefaultGroupId) {
 }

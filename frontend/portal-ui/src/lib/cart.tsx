@@ -2,6 +2,24 @@ import { createContext, useContext, useEffect, useMemo, useState, type PropsWith
 import type { CartItem } from '../types';
 
 const STORAGE_KEY = 'orderflow_portal_cart';
+export const CART_ITEM_ADDED_EVENT = 'orderflow:cart-item-added';
+
+export interface CartItemAddedEventDetail {
+  productName: string;
+  sourceX: number;
+  sourceY: number;
+}
+
+export function notifyCartItemAdded(source: HTMLElement, productName: string) {
+  const sourceRect = source.getBoundingClientRect();
+  window.dispatchEvent(new CustomEvent<CartItemAddedEventDetail>(CART_ITEM_ADDED_EVENT, {
+    detail: {
+      productName,
+      sourceX: sourceRect.left + sourceRect.width / 2,
+      sourceY: sourceRect.top + sourceRect.height / 2,
+    },
+  }));
+}
 
 interface CartContextValue {
   items: CartItem[];

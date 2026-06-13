@@ -2,6 +2,7 @@ package com.orderflow.customer.service;
 
 import com.orderflow.customer.config.CustomerLifecycleProperties;
 import com.orderflow.customer.domain.CustomerProfile;
+import com.orderflow.customer.dto.AuthenticatedCustomer;
 import com.orderflow.customer.dto.CustomerPasswordChangeRequest;
 import com.orderflow.customer.dto.CustomerRegistrationRequest;
 import com.orderflow.customer.dto.CustomerResponse;
@@ -16,6 +17,7 @@ import com.orderflow.customer.repository.CustomerProfileRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -83,10 +85,19 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public CustomerResponse getCurrentCustomer(String identityUserId) {
-        return toResponse(customerProfileRepository.findByIdentityUserId(identityUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer not found")));
+    @Transactional
+    public CustomerResponse getCurrentCustomer(AuthenticatedCustomer authenticatedCustomer) {
+        String identityUserId = requireValue(authenticatedCustomer.identityUserId(), "Signed-in identity is missing a subject");
+        String email = normalizeEmail(requireValue(authenticatedCustomer.email(), "Signed-in identity is missing an email address"));
+        String username = normalizeUsername(defaultValue(authenticatedCustomer.username(), email));
+
+        CustomerProfile profile = customerProfileRepository.findByIdentityUserId(identityUserId)
+                .or(() -> customerProfileRepository.findByEmailIgnoreCase(email))
+                .or(() -> customerProfileRepository.findByUsernameIgnoreCase(username))
+                .map(existing -> synchronizeProfile(existing, authenticatedCustomer, identityUserId, username, email))
+                .orElseGet(() -> createProfile(authenticatedCustomer, identityUserId, username, email));
+
+        return toResponse(profile);
     }
 
     @Override
@@ -157,6 +168,65 @@ public class CustomerServiceImpl implements CustomerService {
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
     }
 
+    private CustomerProfile createProfile(
+            AuthenticatedCustomer authenticatedCustomer,
+            String identityUserId,
+            String username,
+            String email) {
+        LocalDateTime now = LocalDateTime.now();
+        CustomerProfile profile = customerProfileRepository.save(CustomerProfile.builder()
+                .identityUserId(identityUserId)
+                .username(username)
+                .email(email)
+                .firstName(defaultValue(authenticatedCustomer.firstName(), "Customer"))
+                .lastName(defaultValue(authenticatedCustomer.lastName(), ""))
+                .enabled(true)
+                .emailVerified(authenticatedCustomer.emailVerified())
+                .registeredAt(now)
+                .passwordChangedAt(now)
+                .passwordExpiresAt(now.plusDays(lifecycleProperties.password().validityDays()))
+                .passwordExpiringNotified(false)
+                .passwordExpiredNotified(false)
+                .build());
+
+        eventPublisher.publishCustomerUpserted(buildUpsertedEvent(profile));
+        log.info("Created customer profile from signed-in identity id={} email={}", profile.getId(), profile.getEmail());
+        return profile;
+    }
+
+    private CustomerProfile synchronizeProfile(
+            CustomerProfile profile,
+            AuthenticatedCustomer authenticatedCustomer,
+            String identityUserId,
+            String username,
+            String email) {
+        String firstName = defaultValue(authenticatedCustomer.firstName(), profile.getFirstName());
+        String lastName = defaultValue(authenticatedCustomer.lastName(), profile.getLastName());
+        boolean changed = !Objects.equals(profile.getIdentityUserId(), identityUserId)
+                || !Objects.equals(profile.getUsername(), username)
+                || !Objects.equals(profile.getEmail(), email)
+                || !Objects.equals(profile.getFirstName(), firstName)
+                || !Objects.equals(profile.getLastName(), lastName)
+                || !Boolean.TRUE.equals(profile.getEnabled())
+                || !Objects.equals(profile.getEmailVerified(), authenticatedCustomer.emailVerified());
+
+        if (!changed) {
+            return profile;
+        }
+
+        profile.setIdentityUserId(identityUserId);
+        profile.setUsername(username);
+        profile.setEmail(email);
+        profile.setFirstName(firstName);
+        profile.setLastName(lastName);
+        profile.setEnabled(true);
+        profile.setEmailVerified(authenticatedCustomer.emailVerified());
+
+        CustomerProfile saved = customerProfileRepository.save(profile);
+        eventPublisher.publishCustomerUpserted(buildUpsertedEvent(saved));
+        return saved;
+    }
+
     private void validateUniqueCustomer(String username, String email, UUID existingCustomerId) {
         String normalizedUsername = normalizeUsername(username);
         String normalizedEmail = normalizeEmail(email);
@@ -222,5 +292,16 @@ public class CustomerServiceImpl implements CustomerService {
 
     private String normalizeEmail(String value) {
         return value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String requireValue(String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new BusinessException(message);
+        }
+        return value.trim();
+    }
+
+    private String defaultValue(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
     }
 }

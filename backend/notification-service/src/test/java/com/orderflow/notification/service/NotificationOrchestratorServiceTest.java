@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,6 +33,9 @@ class NotificationOrchestratorServiceTest {
 
     @Mock
     private EmailService emailService;
+
+    @Captor
+    private ArgumentCaptor<Map<String, Object>> variablesCaptor;
 
     private NotificationOrchestratorService notificationOrchestratorService;
 
@@ -71,7 +75,6 @@ class NotificationOrchestratorServiceTest {
 
         notificationOrchestratorService.handleOrderCreated(event);
 
-        ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
         verify(emailTemplateService).renderTemplate(org.mockito.ArgumentMatchers.eq(EmailTemplateType.ORDER_CONFIRMATION), variablesCaptor.capture());
         verify(emailService).sendHtmlEmail("alex@example.com", "Oflio Commerce order confirmation OFL-20260607-ABC12345", "<html>confirmation</html>");
 

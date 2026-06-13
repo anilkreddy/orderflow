@@ -95,8 +95,9 @@ orderflow/
 
 ### Backend
 
-- Java 21
-- Spring Boot 4.0.x
+- Java 25 LTS
+- Spring Boot 4.0.7
+- Spring Cloud 2025.1.2
 - Spring Framework 7
 - Gradle multi-module build
 - Spring Web MVC
@@ -113,10 +114,11 @@ orderflow/
 
 ### Frontend
 
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
+- Node.js 24 LTS
+- React 19.2
+- TypeScript 6
+- Vite 8
+- Tailwind CSS 4.3
 - Axios
 - React Router
 - React Hook Form
@@ -134,6 +136,13 @@ orderflow/
 ### CI/CD
 
 - GitHub Actions
+
+## Development Runtimes
+
+- Java 25 is selected by `.java-version` and enforced by the Gradle toolchain.
+- Node.js 24.16.0 is selected by `.nvmrc` and used by CI and frontend Docker builds.
+- Run `nvm use` from the repository root before installing frontend dependencies.
+- Spring Boot remains on the latest `4.0.x` patch because Spring Cloud `2025.1.x` officially supports Spring Boot `4.0.x`. Spring Boot `4.1.x` should be adopted when a compatible Spring Cloud GA train is available.
 
 ## Service Ports
 
@@ -169,6 +178,10 @@ Purpose:
 - customer-facing storefront for browsing active products
 - cart and checkout flow backed by the order-service APIs
 - customer registration, sign-in, and account-backed checkout
+- a unified Account control that opens sign-in for guests and a complete customer dashboard for authenticated customers
+- persistent account navigation with dedicated routes for overview, profile, orders, addresses, payments, security, preferences, and support
+- account order routes at `/account/orders` and `/account/orders/{orderCode}` for list and detail views
+- first-login reconciliation that creates or relinks the customer-service profile for existing Keycloak customer identities
 - self-service order lookup for guests plus owned order history for signed-in customers
 - clear separation from internal administrative workflows
 
@@ -684,7 +697,7 @@ The root `docker-compose.yml` supports:
 - infrastructure-only runs for source development
 - full-stack containerized runs including both frontends
 
-Each backend image uses a multi-stage Docker build that compiles the target Spring Boot module inside the container and then copies the generated JAR into a Java 21 runtime image.
+Each backend image uses a multi-stage Docker build that compiles the target Spring Boot module inside the container and then copies the generated JAR into a Java 25 runtime image.
 
 ## Code Quality Patterns Used
 

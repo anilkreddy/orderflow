@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { getDepartmentForProduct, getLeadBadge, getReviewSnapshot, getShippingNote } from '../lib/catalog';
 import { formatCurrency } from '../lib/format';
-import { useCart } from '../lib/cart';
+import { notifyCartItemAdded, useCart } from '../lib/cart';
 import type { Product } from '../types';
 
 interface ProductCardProps {
@@ -71,7 +71,10 @@ export function ProductCard({ product }: ProductCardProps) {
           type="button"
           disabled={product.stockQuantity === 0}
           className="inline-flex items-center justify-center rounded-full bg-[#0f63ff] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1155d8] disabled:cursor-not-allowed disabled:bg-slate-300"
-          onClick={() => addItem(product.id, 1)}
+          onClick={(event) => {
+            addItem(product.id, 1);
+            notifyCartItemAdded(event.currentTarget, product.name);
+          }}
         >
           Add to cart
         </button>

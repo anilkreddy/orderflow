@@ -11,7 +11,7 @@ Important files:
 
 What that gives you:
 
-- shared Java 21 toolchain
+- shared Java 25 toolchain
 - consistent dependency management
 - per-service Spring Boot modules
 

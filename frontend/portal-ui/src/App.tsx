@@ -1,6 +1,17 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
 import { AccountPage } from './pages/AccountPage';
+import {
+  AccountAddressesPage,
+  AccountOrderDetailsPage,
+  AccountOrdersPage,
+  AccountOverviewPage,
+  AccountPaymentsPage,
+  AccountPreferencesPage,
+  AccountProfilePage,
+  AccountSecurityPage,
+  AccountSupportPage,
+} from './pages/AccountContentPages';
 import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { HomePage } from './pages/HomePage';
@@ -20,7 +31,17 @@ export default function App() {
         <Route path="/cart" element={<CartPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/account" element={<AccountPage />} />
+        <Route path="/account" element={<AccountPage />}>
+          <Route index element={<AccountOverviewPage />} />
+          <Route path="profile" element={<AccountProfilePage />} />
+          <Route path="orders" element={<AccountOrdersPage />} />
+          <Route path="orders/:orderCode" element={<AccountOrderDetailsPage />} />
+          <Route path="addresses" element={<AccountAddressesPage />} />
+          <Route path="payments" element={<AccountPaymentsPage />} />
+          <Route path="security" element={<AccountSecurityPage />} />
+          <Route path="preferences" element={<AccountPreferencesPage />} />
+          <Route path="support" element={<AccountSupportPage />} />
+        </Route>
         <Route path="/track-order" element={<OrderLookupPage />} />
         <Route path="/orders/:id" element={<OrderStatusPage />} />
         <Route path="/catalog" element={<Navigate to="/shop" replace />} />

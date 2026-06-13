@@ -53,11 +53,11 @@ The CI workflow is in `.github/workflows/build.yml`.
 Current pipeline behavior:
 
 - check out the repo
-- set up Java 21
+- set up Java 25
 - build backend modules with Gradle
 - run backend tests
 - build backend jars
-- set up Node.js
+- set up Node.js 24 LTS
 - install and build both frontends
 
 Why this matters:

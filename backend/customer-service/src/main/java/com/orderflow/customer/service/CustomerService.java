@@ -1,5 +1,6 @@
 package com.orderflow.customer.service;
 
+import com.orderflow.customer.dto.AuthenticatedCustomer;
 import com.orderflow.customer.dto.CustomerPasswordChangeRequest;
 import com.orderflow.customer.dto.CustomerRegistrationRequest;
 import com.orderflow.customer.dto.CustomerResponse;
@@ -15,7 +16,7 @@ public interface CustomerService {
 
     CustomerResponse getCustomer(UUID customerId);
 
-    CustomerResponse getCurrentCustomer(String identityUserId);
+    CustomerResponse getCurrentCustomer(AuthenticatedCustomer authenticatedCustomer);
 
     CustomerResponse updateCustomer(UUID customerId, CustomerUpdateRequest request);
 

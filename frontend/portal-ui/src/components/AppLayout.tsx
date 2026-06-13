@@ -1,8 +1,8 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useCustomerAuth } from '../lib/auth';
 import { departments } from '../lib/catalog';
-import { useCart } from '../lib/cart';
+import { CART_ITEM_ADDED_EVENT, type CartItemAddedEventDetail, useCart } from '../lib/cart';
 
 function resolvePageTitle(pathname: string) {
   if (pathname === '/') {
@@ -29,7 +29,7 @@ function resolvePageTitle(pathname: string) {
     return 'Create Account';
   }
 
-  if (pathname === '/account') {
+  if (pathname.startsWith('/account')) {
     return 'My Account';
   }
 
@@ -50,11 +50,15 @@ export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [search, setSearch] = useState('');
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [cartAnimating, setCartAnimating] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const cartLinkRef = useRef<HTMLAnchorElement>(null);
+  const cartPulseTimeoutRef = useRef<number | null>(null);
 
   const utilityLinks = [
     { to: '/shop', label: 'Shop all' },
     { to: '/track-order', label: hasRequiredScope ? 'Your orders' : 'Track order' },
-    ...(hasRequiredScope ? [{ to: '/account', label: 'Account' }] : [{ to: '/register', label: 'Create account' }]),
   ];
 
   useEffect(() => {
@@ -68,7 +72,124 @@ export function AppLayout() {
 
   useEffect(() => {
     document.title = `${resolvePageTitle(location.pathname)} | Oflio Commerce`;
-  }, [location.pathname]);
+    setAccountMenuOpen(false);
+  }, [location.hash, location.pathname]);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setAccountMenuOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    function pulseCart() {
+      setCartAnimating(true);
+      if (cartPulseTimeoutRef.current) {
+        window.clearTimeout(cartPulseTimeoutRef.current);
+      }
+      cartPulseTimeoutRef.current = window.setTimeout(() => setCartAnimating(false), 420);
+    }
+
+    function handleCartItemAdded(event: Event) {
+      const cartRect = cartLinkRef.current?.getBoundingClientRect();
+      if (!cartRect) {
+        return;
+      }
+
+      const { productName, sourceX, sourceY } = (event as CustomEvent<CartItemAddedEventDetail>).detail;
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        pulseCart();
+        return;
+      }
+
+      const marker = document.createElement('div');
+      marker.setAttribute('aria-hidden', 'true');
+      marker.textContent = productName.trim().charAt(0).toUpperCase() || '+';
+      Object.assign(marker.style, {
+        alignItems: 'center',
+        background: '#0f63ff',
+        border: '3px solid white',
+        borderRadius: '9999px',
+        boxShadow: '0 14px 34px rgba(15, 99, 255, 0.35)',
+        color: 'white',
+        display: 'flex',
+        fontFamily: 'inherit',
+        fontSize: '13px',
+        fontWeight: '800',
+        height: '38px',
+        justifyContent: 'center',
+        left: `${sourceX}px`,
+        pointerEvents: 'none',
+        position: 'fixed',
+        top: `${sourceY}px`,
+        width: '38px',
+        zIndex: '100',
+      });
+      document.body.appendChild(marker);
+
+      const targetX = cartRect.left + cartRect.width / 2;
+      const targetY = cartRect.top + cartRect.height / 2;
+      const deltaX = targetX - sourceX;
+      const deltaY = targetY - sourceY;
+      const animation = marker.animate([
+        {
+          offset: 0,
+          opacity: 0,
+          transform: 'translate(-50%, -50%) translate(0, 0) scale(0.55)',
+        },
+        {
+          offset: 0.18,
+          opacity: 1,
+          transform: 'translate(-50%, -50%) translate(0, -12px) scale(1)',
+        },
+        {
+          offset: 0.55,
+          opacity: 1,
+          transform: `translate(-50%, -50%) translate(${deltaX * 0.55}px, ${deltaY * 0.55 - 50}px) scale(0.8)`,
+        },
+        {
+          offset: 1,
+          opacity: 0.35,
+          transform: `translate(-50%, -50%) translate(${deltaX}px, ${deltaY}px) scale(0.2)`,
+        },
+      ], {
+        duration: 720,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        fill: 'forwards',
+      });
+
+      void animation.finished
+        .then(() => {
+          marker.remove();
+          pulseCart();
+        })
+        .catch(() => marker.remove());
+    }
+
+    window.addEventListener(CART_ITEM_ADDED_EVENT, handleCartItemAdded);
+    return () => {
+      window.removeEventListener(CART_ITEM_ADDED_EVENT, handleCartItemAdded);
+      if (cartPulseTimeoutRef.current) {
+        window.clearTimeout(cartPulseTimeoutRef.current);
+      }
+    };
+  }, []);
 
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -79,6 +200,24 @@ export function AppLayout() {
     }
 
     navigate({ pathname: '/shop', search: params.toString() ? `?${params.toString()}` : '' });
+  }
+
+  function handleAccountClick() {
+    if (!isAuthenticated || !hasRequiredScope) {
+      void signIn(Boolean(authorizationMessage));
+      return;
+    }
+
+    setAccountMenuOpen((open) => !open);
+  }
+
+  function handleAccountNavigation() {
+    if (!isAuthenticated || !hasRequiredScope) {
+      void signIn(Boolean(authorizationMessage));
+      return;
+    }
+
+    navigate('/account');
   }
 
   return (
@@ -127,49 +266,94 @@ export function AppLayout() {
                   Switch account
                 </button>
               ) : null}
-              {!ready ? (
-                <span className="rounded-full bg-white/10 px-4 py-3 text-xs font-semibold text-slate-200">Identity...</span>
-              ) : isAuthenticated && hasRequiredScope ? (
-                <>
-                  <NavLink
-                    to="/account"
-                    className="hidden rounded-full bg-white/10 px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/16 lg:inline-flex"
+              <div className="relative" ref={accountMenuRef}>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-3 rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14"
+                  onClick={handleAccountClick}
+                  disabled={!ready}
+                  aria-expanded={isAuthenticated && hasRequiredScope ? accountMenuOpen : undefined}
+                  aria-haspopup={isAuthenticated && hasRequiredScope ? 'menu' : undefined}
+                >
+                  {ready ? 'Account' : 'Identity...'}
+                  {ready && isAuthenticated && hasRequiredScope ? (
+                    <span className="max-w-28 truncate text-xs font-medium text-slate-300">
+                      {session?.givenName ?? 'Customer'}
+                    </span>
+                  ) : null}
+                </button>
+
+                {accountMenuOpen && isAuthenticated && hasRequiredScope ? (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-72 overflow-hidden rounded-[24px] border border-slate-200 bg-white p-2 text-slate-900 shadow-[0_24px_70px_rgba(8,22,44,0.28)]"
                   >
-                    Hello, {session?.givenName ?? 'Customer'}
-                  </NavLink>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-3 rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14"
-                    onClick={() => void signOut()}
-                  >
-                    Sign out
-                  </button>
-                </>
-              ) : (
-                <>
-                  <NavLink
-                    to="/register"
-                    className="inline-flex items-center justify-center gap-3 rounded-full border border-transparent bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/16"
-                  >
-                    Create account
-                  </NavLink>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-3 rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14"
-                    onClick={() => void signIn(Boolean(authorizationMessage))}
-                  >
-                    Sign in
-                  </button>
-                </>
-              )}
+                    <div className="border-b border-slate-100 px-4 py-3">
+                      <p className="text-sm font-semibold text-slate-950">{session?.displayName ?? 'Customer account'}</p>
+                      <p className="mt-1 truncate text-xs text-slate-500">{session?.email}</p>
+                    </div>
+                    <div className="grid gap-1 py-2">
+                      {[
+                        { to: '/account/profile', label: 'Profile' },
+                        { to: '/account/addresses', label: 'Addresses' },
+                        { to: '/account/orders', label: 'Orders' },
+                        { to: '/account/payments', label: 'Payment methods' },
+                        { to: '/account/security', label: 'Security' },
+                        { to: '/account/preferences', label: 'Preferences' },
+                      ].map((item) => (
+                        <NavLink
+                          key={item.to}
+                          to={item.to}
+                          role="menuitem"
+                          className="rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-950"
+                        >
+                          {item.label}
+                        </NavLink>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full rounded-2xl border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
+                      onClick={() => void signOut()}
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                ) : null}
+              </div>
               <NavLink
                 to="/cart"
-                className="inline-flex items-center gap-3 rounded-full bg-white px-5 py-3 text-sm font-semibold text-[#08162c] transition hover:bg-slate-100"
+                ref={cartLinkRef}
+                aria-label={`Cart with ${itemCount} item${itemCount === 1 ? '' : 's'}`}
+                title="Cart"
+                className={({ isActive }) => [
+                  'relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-[#ffcd38] bg-[#ffcd38] text-[#08162c] shadow-[0_8px_22px_rgba(255,205,56,0.22)] transition duration-200 hover:bg-[#ffd962]',
+                  cartAnimating ? 'scale-110 ring-4 ring-[#ffcd38]/30' : 'scale-100',
+                  isActive
+                    ? 'ring-2 ring-white/70'
+                    : '',
+                ].join(' ')}
               >
-                Cart
-                <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-[#0f63ff] px-2 py-1 text-xs font-bold text-white">
-                  {itemCount}
-                </span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.9"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-6 w-6 text-[#08162c]"
+                >
+                  <circle cx="9" cy="20" r="1" />
+                  <circle cx="18" cy="20" r="1" />
+                  <path d="M3 4h2l2.25 10.25a2 2 0 0 0 1.95 1.57h8.95a2 2 0 0 0 1.94-1.51L22 7H6" />
+                </svg>
+                {itemCount > 0 ? (
+                  <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#0b1730] bg-[#0f63ff] px-1 text-[10px] font-bold leading-none text-white">
+                    {itemCount > 99 ? '99+' : itemCount}
+                  </span>
+                ) : null}
               </NavLink>
             </div>
           </div>
@@ -192,6 +376,14 @@ export function AppLayout() {
                   {item.label}
                 </NavLink>
               ))}
+              <button
+                type="button"
+                className="rounded-full px-4 py-2 text-left transition hover:bg-slate-50 hover:text-slate-950"
+                onClick={handleAccountNavigation}
+                disabled={!ready}
+              >
+                Account
+              </button>
               {departments.slice(0, 4).map((department) => (
                 <button
                   key={department.key}
@@ -235,10 +427,8 @@ export function AppLayout() {
           <div>
             <p className="text-sm font-semibold text-white">Account</p>
             <div className="mt-4 grid gap-3 text-sm text-slate-300">
-              <NavLink to="/register">Create account</NavLink>
-              <NavLink to="/account">My account</NavLink>
-              <button type="button" className="text-left" onClick={() => void signIn()}>
-                Sign in
+              <button type="button" className="text-left" onClick={handleAccountNavigation}>
+                Account
               </button>
             </div>
           </div>

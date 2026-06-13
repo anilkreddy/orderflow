@@ -25,7 +25,8 @@ const orderSchema = z.object({
     .min(1, 'Add at least one line item'),
 });
 
-type OrderFormValues = z.infer<typeof orderSchema>;
+type OrderFormInput = z.input<typeof orderSchema>;
+type OrderFormValues = z.output<typeof orderSchema>;
 
 export function OrderCreatePage() {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export function OrderCreatePage() {
     handleSubmit,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<OrderFormValues>({
+  } = useForm<OrderFormInput, unknown, OrderFormValues>({
     resolver: zodResolver(orderSchema),
     defaultValues: {
       customerName: '',
@@ -210,7 +211,7 @@ export function OrderCreatePage() {
                 <div key={`${line.product?.id ?? 'empty'}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
                   <div className="font-semibold text-slate-900">{line.product?.name ?? 'Select a product'}</div>
                   <div className="mt-1 text-slate-600">
-                    Qty {watchedItems[index]?.quantity || 0} • {formatCurrency(line.amount)}
+                    Qty {Number(watchedItems[index]?.quantity || 0)} • {formatCurrency(line.amount)}
                   </div>
                 </div>
               ))}

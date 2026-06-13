@@ -18,7 +18,8 @@ const productSchema = z.object({
   active: z.boolean(),
 });
 
-type ProductFormValues = z.infer<typeof productSchema>;
+type ProductFormInput = z.input<typeof productSchema>;
+type ProductFormValues = z.output<typeof productSchema>;
 
 export function ProductFormPage() {
   const { id } = useParams();
@@ -32,7 +33,7 @@ export function ProductFormPage() {
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<ProductFormValues>({
+  } = useForm<ProductFormInput, unknown, ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: '',

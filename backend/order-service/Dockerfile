@@ -1,4 +1,4 @@
-FROM gradle:9.5.0-jdk21 AS builder
+FROM gradle:9.5.0-jdk25 AS builder
 
 WORKDIR /home/gradle/project
 
@@ -6,7 +6,7 @@ COPY --chown=gradle:gradle . .
 
 RUN gradle :order-service:bootJar --no-daemon
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 
 WORKDIR /app
 

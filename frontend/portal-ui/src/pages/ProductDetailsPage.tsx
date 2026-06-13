@@ -5,7 +5,7 @@ import { ProductCard } from '../components/ProductCard';
 import { QuantitySelector } from '../components/QuantitySelector';
 import { getDepartmentForProduct, getFeatureHighlights, getLeadBadge, getMerchandisingSignals, getReviewSnapshot, getShippingNote } from '../lib/catalog';
 import { productApi, searchApi, toApiMessage } from '../lib/api';
-import { useCart } from '../lib/cart';
+import { notifyCartItemAdded, useCart } from '../lib/cart';
 import { formatCurrency } from '../lib/format';
 import type { Product } from '../types';
 
@@ -152,7 +152,10 @@ export function ProductDetailsPage() {
                 type="button"
                 disabled={product.stockQuantity === 0}
                 className="inline-flex items-center justify-center rounded-full bg-[#0f63ff] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#1155d8] disabled:cursor-not-allowed disabled:bg-slate-300"
-                onClick={() => addItem(product.id, quantity)}
+                onClick={(event) => {
+                  addItem(product.id, quantity);
+                  notifyCartItemAdded(event.currentTarget, product.name);
+                }}
               >
                 Add {quantity} to cart
               </button>

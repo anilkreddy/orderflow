@@ -6,7 +6,7 @@ import { ProductCard } from '../components/ProductCard';
 import { SectionHeading } from '../components/SectionHeading';
 import { categoryApi, searchApi, toApiMessage } from '../lib/api';
 import { departments, getLeadBadge } from '../lib/catalog';
-import { useCart } from '../lib/cart';
+import { notifyCartItemAdded, useCart } from '../lib/cart';
 import { formatCurrency } from '../lib/format';
 import type { Category, Product, ProductSearchResponse } from '../types';
 
@@ -328,7 +328,10 @@ export function ShopPage() {
                           type="button"
                           className="inline-flex items-center justify-center rounded-full bg-[#0f63ff] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1155d8] disabled:cursor-not-allowed disabled:bg-slate-300"
                           disabled={heroProduct.stockQuantity === 0}
-                          onClick={() => addItem(heroProduct.id, 1)}
+                          onClick={(event) => {
+                            addItem(heroProduct.id, 1);
+                            notifyCartItemAdded(event.currentTarget, heroProduct.name);
+                          }}
                         >
                           Add to cart
                         </button>

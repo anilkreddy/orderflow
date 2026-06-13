@@ -1,5 +1,6 @@
 package com.orderflow.customer.controller;
 
+import com.orderflow.customer.dto.AuthenticatedCustomer;
 import com.orderflow.customer.dto.CustomerPasswordChangeRequest;
 import com.orderflow.customer.dto.CustomerRegistrationRequest;
 import com.orderflow.customer.dto.CustomerResponse;
@@ -42,7 +43,13 @@ public class CustomerController {
     @GetMapping("/me")
     @Operation(summary = "Retrieve the current signed-in customer profile")
     public CustomerResponse getCurrentCustomer(@AuthenticationPrincipal Jwt jwt) {
-        return customerService.getCurrentCustomer(jwt.getSubject());
+        return customerService.getCurrentCustomer(new AuthenticatedCustomer(
+                jwt.getSubject(),
+                jwt.getClaimAsString("preferred_username"),
+                jwt.getClaimAsString("email"),
+                jwt.getClaimAsString("given_name"),
+                jwt.getClaimAsString("family_name"),
+                Boolean.TRUE.equals(jwt.getClaimAsBoolean("email_verified"))));
     }
 
     @GetMapping

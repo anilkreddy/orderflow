@@ -54,12 +54,12 @@ identity:
   admin:
     server-url: ${IDENTITY_SERVER_URL:http://localhost:8180}
     admin-realm: ${IDENTITY_ADMIN_REALM:master}
-    realm: ${IDENTITY_REALM:oflio}
+    target-realm: ${IDENTITY_REALM:oflio}
     username: ${IDENTITY_ADMIN_USERNAME:admin}
     password: ${IDENTITY_ADMIN_PASSWORD:admin}
     client-id: ${IDENTITY_ADMIN_CLIENT_ID:admin-cli}
     customer-default-group-path: ${IDENTITY_CUSTOMER_DEFAULT_GROUP_PATH:/customers/registered}
-    customer-default-group-id: ${IDENTITY_CUSTOMER_DEFAULT_GROUP_ID:}
+    customer-default-group-id: ${IDENTITY_CUSTOMER_DEFAULT_GROUP_ID:ca88dc6e-e482-4e85-8bdf-d6ce6ac06ddb}
 
 orderflow:
   customer:

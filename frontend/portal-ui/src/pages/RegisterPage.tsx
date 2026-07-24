@@ -1,26 +1,34 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { z } from 'zod';
 import { SectionHeading } from '../components/SectionHeading';
 import { customerApi, toApiMessage } from '../lib/api';
 import { useCustomerAuth } from '../lib/auth';
 
 const registrationSchema = z.object({
-  firstName: z.string().min(2, 'First name must be at least 2 characters'),
-  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
-  email: z.string().email('Enter a valid email address'),
-  username: z.string().min(4, 'Username must be at least 4 characters'),
+  firstName: z.string().trim().min(2, 'First name must be at least 2 characters'),
+  lastName: z.string().trim().min(2, 'Last name must be at least 2 characters'),
+  email: z.string().trim().email('Enter a valid email address'),
+  username: z.string()
+    .trim()
+    .min(4, 'Username must be at least 4 characters')
+    .regex(/^[a-zA-Z0-9._-]+$/, 'Use letters, numbers, dots, underscores, or hyphens'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string().min(1, 'Confirm your password'),
+}).refine((values) => values.password === values.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
 });
 
 type RegistrationValues = z.infer<typeof registrationSchema>;
 
 export function RegisterPage() {
-  const { signIn, ready } = useCustomerAuth();
+  const { signIn, ready, isAuthenticated, hasRequiredScope } = useCustomerAuth();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successEmail, setSuccessEmail] = useState<string | null>(null);
+  const [successUsername, setSuccessUsername] = useState<string | null>(null);
 
   const {
     register,
@@ -34,19 +42,63 @@ export function RegisterPage() {
       email: '',
       username: '',
       password: '',
+      confirmPassword: '',
     },
   });
 
   const onSubmit = handleSubmit(async (values) => {
+    const email = values.email.trim().toLowerCase();
+    const username = values.username.trim().toLowerCase();
+
     try {
-      await customerApi.register(values);
-      setSuccessEmail(values.email);
+      await customerApi.register({
+        firstName: values.firstName.trim(),
+        lastName: values.lastName.trim(),
+        email,
+        username,
+        password: values.password,
+      });
+      setSuccessEmail(email);
+      setSuccessUsername(username);
       setSubmitError(null);
     } catch (error) {
       setSubmitError(toApiMessage(error, 'Unable to create your account right now'));
       setSuccessEmail(null);
+      setSuccessUsername(null);
+      return;
+    }
+
+    try {
+      await signIn(true, username, '/account');
+    } catch {
+      setSubmitError('Your account was created, but sign-in could not be opened. Use Sign in now to continue.');
     }
   });
+
+  if (ready && isAuthenticated && hasRequiredScope) {
+    return <Navigate to="/account" replace />;
+  }
+
+  if (ready && isAuthenticated) {
+    return (
+      <div className="mx-auto max-w-[900px] px-4 py-16 md:px-6">
+        <div className="market-panel rounded-[34px] px-6 py-8 text-center md:px-10">
+          <div className="text-sm font-semibold uppercase tracking-[0.22em] text-[#0f63ff]">Account session</div>
+          <h1 className="mt-3 text-3xl font-semibold text-slate-950">Switch to a customer account</h1>
+          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-slate-600">
+            You are already signed in with an account that cannot access the customer storefront. Sign in with a customer account instead.
+          </p>
+          <button
+            type="button"
+            className="mt-6 inline-flex items-center justify-center rounded-full bg-[#0f63ff] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1155d8]"
+            onClick={() => void signIn(true, undefined, '/account')}
+          >
+            Switch account
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-10 md:px-6">
@@ -81,7 +133,8 @@ export function RegisterPage() {
                 <button
                   type="button"
                   className="inline-flex items-center justify-center rounded-full bg-[#0f63ff] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1155d8]"
-                  onClick={() => void signIn(true, successEmail)}
+                  onClick={() => void signIn(true, successUsername ?? successEmail, '/account')}
+                  disabled={!ready}
                 >
                   {ready ? 'Sign in now' : 'Preparing sign in...'}
                 </button>
@@ -99,14 +152,14 @@ export function RegisterPage() {
               <label className="grid gap-2 text-sm font-medium text-slate-700">
                 First name
                 <span className="field-shell rounded-[22px] bg-white px-4 py-3 shadow-[0_12px_25px_rgba(15,23,42,0.04)]">
-                  <input className="w-full bg-transparent outline-none" placeholder="Maya" {...register('firstName')} />
+                  <input className="w-full bg-transparent outline-none" placeholder="Maya" autoComplete="given-name" {...register('firstName')} />
                 </span>
                 {errors.firstName ? <span className="text-sm text-rose-700">{errors.firstName.message}</span> : null}
               </label>
               <label className="grid gap-2 text-sm font-medium text-slate-700">
                 Last name
                 <span className="field-shell rounded-[22px] bg-white px-4 py-3 shadow-[0_12px_25px_rgba(15,23,42,0.04)]">
-                  <input className="w-full bg-transparent outline-none" placeholder="Patel" {...register('lastName')} />
+                  <input className="w-full bg-transparent outline-none" placeholder="Patel" autoComplete="family-name" {...register('lastName')} />
                 </span>
                 {errors.lastName ? <span className="text-sm text-rose-700">{errors.lastName.message}</span> : null}
               </label>
@@ -114,23 +167,30 @@ export function RegisterPage() {
             <label className="grid gap-2 text-sm font-medium text-slate-700">
               Email address
               <span className="field-shell rounded-[22px] bg-white px-4 py-3 shadow-[0_12px_25px_rgba(15,23,42,0.04)]">
-                <input className="w-full bg-transparent outline-none" placeholder="maya@example.com" {...register('email')} />
+                <input type="email" className="w-full bg-transparent outline-none" placeholder="maya@example.com" autoComplete="email" {...register('email')} />
               </span>
               {errors.email ? <span className="text-sm text-rose-700">{errors.email.message}</span> : null}
             </label>
             <label className="grid gap-2 text-sm font-medium text-slate-700">
               Username
               <span className="field-shell rounded-[22px] bg-white px-4 py-3 shadow-[0_12px_25px_rgba(15,23,42,0.04)]">
-                <input className="w-full bg-transparent outline-none" placeholder="maya.patel" {...register('username')} />
+                <input className="w-full bg-transparent outline-none" placeholder="maya.patel" autoComplete="username" {...register('username')} />
               </span>
               {errors.username ? <span className="text-sm text-rose-700">{errors.username.message}</span> : null}
             </label>
             <label className="grid gap-2 text-sm font-medium text-slate-700">
               Password
               <span className="field-shell rounded-[22px] bg-white px-4 py-3 shadow-[0_12px_25px_rgba(15,23,42,0.04)]">
-                <input type="password" className="w-full bg-transparent outline-none" placeholder="Create a password" {...register('password')} />
+                <input type="password" className="w-full bg-transparent outline-none" placeholder="Create a password" autoComplete="new-password" {...register('password')} />
               </span>
               {errors.password ? <span className="text-sm text-rose-700">{errors.password.message}</span> : null}
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-slate-700">
+              Confirm password
+              <span className="field-shell rounded-[22px] bg-white px-4 py-3 shadow-[0_12px_25px_rgba(15,23,42,0.04)]">
+                <input type="password" className="w-full bg-transparent outline-none" placeholder="Repeat your password" autoComplete="new-password" {...register('confirmPassword')} />
+              </span>
+              {errors.confirmPassword ? <span className="text-sm text-rose-700">{errors.confirmPassword.message}</span> : null}
             </label>
 
             {submitError ? <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{submitError}</div> : null}
@@ -143,6 +203,7 @@ export function RegisterPage() {
                 type="button"
                 className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                 onClick={() => void signIn()}
+                disabled={!ready}
               >
                 Already have an account?
               </button>

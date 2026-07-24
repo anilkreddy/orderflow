@@ -36,7 +36,7 @@ interface AuthContextValue {
   hasRequiredScope: boolean;
   session: CustomerSession | null;
   authorizationMessage: string | null;
-  signIn: (forcePrompt?: boolean, loginHint?: string) => Promise<void>;
+  signIn: (forcePrompt?: boolean, loginHint?: string, returnPath?: string) => Promise<void>;
   signOut: () => Promise<void>;
   clearMessage: () => void;
 }
@@ -162,10 +162,12 @@ export function CustomerAuthProvider({ children }: PropsWithChildren) {
     hasRequiredScope: authorized,
     session,
     authorizationMessage,
-    signIn: async (forcePrompt = false, loginHint?: string) => {
+    signIn: async (forcePrompt = false, loginHint?: string, returnPath?: string) => {
       setAuthorizationMessage(null);
       await identityClient.login({
-        redirectUri: window.location.href,
+        redirectUri: returnPath
+          ? new URL(returnPath, window.location.origin).toString()
+          : window.location.href,
         prompt: forcePrompt ? 'login' : undefined,
         loginHint,
       });

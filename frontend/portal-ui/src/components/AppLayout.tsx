@@ -203,11 +203,6 @@ export function AppLayout() {
   }
 
   function handleAccountClick() {
-    if (!isAuthenticated || !hasRequiredScope) {
-      void signIn(Boolean(authorizationMessage));
-      return;
-    }
-
     setAccountMenuOpen((open) => !open);
   }
 
@@ -272,8 +267,8 @@ export function AppLayout() {
                   className="inline-flex items-center gap-3 rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14"
                   onClick={handleAccountClick}
                   disabled={!ready}
-                  aria-expanded={isAuthenticated && hasRequiredScope ? accountMenuOpen : undefined}
-                  aria-haspopup={isAuthenticated && hasRequiredScope ? 'menu' : undefined}
+                  aria-expanded={accountMenuOpen}
+                  aria-haspopup="menu"
                 >
                   {ready ? 'Account' : 'Identity...'}
                   {ready && isAuthenticated && hasRequiredScope ? (
@@ -283,42 +278,75 @@ export function AppLayout() {
                   ) : null}
                 </button>
 
-                {accountMenuOpen && isAuthenticated && hasRequiredScope ? (
+                {accountMenuOpen ? (
                   <div
                     role="menu"
                     className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-72 overflow-hidden rounded-[24px] border border-slate-200 bg-white p-2 text-slate-900 shadow-[0_24px_70px_rgba(8,22,44,0.28)]"
                   >
-                    <div className="border-b border-slate-100 px-4 py-3">
-                      <p className="text-sm font-semibold text-slate-950">{session?.displayName ?? 'Customer account'}</p>
-                      <p className="mt-1 truncate text-xs text-slate-500">{session?.email}</p>
-                    </div>
-                    <div className="grid gap-1 py-2">
-                      {[
-                        { to: '/account/profile', label: 'Profile' },
-                        { to: '/account/addresses', label: 'Addresses' },
-                        { to: '/account/orders', label: 'Orders' },
-                        { to: '/account/payments', label: 'Payment methods' },
-                        { to: '/account/security', label: 'Security' },
-                        { to: '/account/preferences', label: 'Preferences' },
-                      ].map((item) => (
-                        <NavLink
-                          key={item.to}
-                          to={item.to}
+                    {isAuthenticated && hasRequiredScope ? (
+                      <>
+                        <div className="border-b border-slate-100 px-4 py-3">
+                          <p className="text-sm font-semibold text-slate-950">{session?.displayName ?? 'Customer account'}</p>
+                          <p className="mt-1 truncate text-xs text-slate-500">{session?.email}</p>
+                        </div>
+                        <div className="grid gap-1 py-2">
+                          {[
+                            { to: '/account/profile', label: 'Profile' },
+                            { to: '/account/addresses', label: 'Addresses' },
+                            { to: '/account/orders', label: 'Orders' },
+                            { to: '/account/payments', label: 'Payment methods' },
+                            { to: '/account/security', label: 'Security' },
+                            { to: '/account/preferences', label: 'Preferences' },
+                          ].map((item) => (
+                            <NavLink
+                              key={item.to}
+                              to={item.to}
+                              role="menuitem"
+                              className="rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-950"
+                            >
+                              {item.label}
+                            </NavLink>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
                           role="menuitem"
-                          className="rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-950"
+                          className="w-full rounded-2xl border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
+                          onClick={() => void signOut()}
                         >
-                          {item.label}
-                        </NavLink>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="w-full rounded-2xl border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
-                      onClick={() => void signOut()}
-                    >
-                      Sign out
-                    </button>
+                          Sign out
+                        </button>
+                      </>
+                    ) : (
+                      <div className="p-2">
+                        <div className="px-3 pb-4 pt-2">
+                          <p className="text-sm font-semibold text-slate-950">Your Oflio account</p>
+                          <p className="mt-2 text-xs leading-5 text-slate-500">
+                            Sign in to view orders, or create an account to save future purchases.
+                          </p>
+                        </div>
+                        <div className="grid gap-2">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="inline-flex items-center justify-center rounded-2xl bg-[#0f63ff] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#1155d8]"
+                            onClick={() => {
+                              setAccountMenuOpen(false);
+                              void signIn(Boolean(authorizationMessage));
+                            }}
+                          >
+                            Sign in
+                          </button>
+                          <NavLink
+                            to="/register"
+                            role="menuitem"
+                            className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                          >
+                            Create account
+                          </NavLink>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : null}
               </div>

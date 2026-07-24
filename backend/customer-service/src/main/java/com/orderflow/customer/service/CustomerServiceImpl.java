@@ -40,36 +40,41 @@ public class CustomerServiceImpl implements CustomerService {
         validateUniqueCustomer(request.username(), request.email(), null);
 
         String identityUserId = identityAdminService.createCustomer(request);
-        LocalDateTime now = LocalDateTime.now();
-        CustomerProfile profile = customerProfileRepository.save(CustomerProfile.builder()
-                .identityUserId(identityUserId)
-                .username(normalizeUsername(request.username()))
-                .email(normalizeEmail(request.email()))
-                .firstName(request.firstName().trim())
-                .lastName(request.lastName().trim())
-                .enabled(true)
-                .emailVerified(false)
-                .registeredAt(now)
-                .passwordChangedAt(now)
-                .passwordExpiresAt(now.plusDays(lifecycleProperties.password().validityDays()))
-                .passwordExpiringNotified(false)
-                .passwordExpiredNotified(false)
-                .build());
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            CustomerProfile profile = customerProfileRepository.saveAndFlush(CustomerProfile.builder()
+                    .identityUserId(identityUserId)
+                    .username(normalizeUsername(request.username()))
+                    .email(normalizeEmail(request.email()))
+                    .firstName(request.firstName().trim())
+                    .lastName(request.lastName().trim())
+                    .enabled(true)
+                    .emailVerified(false)
+                    .registeredAt(now)
+                    .passwordChangedAt(now)
+                    .passwordExpiresAt(now.plusDays(lifecycleProperties.password().validityDays()))
+                    .passwordExpiringNotified(false)
+                    .passwordExpiredNotified(false)
+                    .build());
 
-        eventPublisher.publishCustomerRegistered(new CustomerRegisteredEvent(
-                UUID.randomUUID(),
-                profile.getId(),
-                profile.getIdentityUserId(),
-                profile.getUsername(),
-                profile.getEmail(),
-                profile.getFirstName(),
-                profile.getLastName(),
-                profile.getRegisteredAt(),
-                now));
-        eventPublisher.publishCustomerUpserted(buildUpsertedEvent(profile));
+            eventPublisher.publishCustomerRegistered(new CustomerRegisteredEvent(
+                    UUID.randomUUID(),
+                    profile.getId(),
+                    profile.getIdentityUserId(),
+                    profile.getUsername(),
+                    profile.getEmail(),
+                    profile.getFirstName(),
+                    profile.getLastName(),
+                    profile.getRegisteredAt(),
+                    now));
+            eventPublisher.publishCustomerUpserted(buildUpsertedEvent(profile));
 
-        log.info("Registered customer id={} email={}", profile.getId(), profile.getEmail());
-        return toResponse(profile);
+            log.info("Registered customer id={} email={}", profile.getId(), profile.getEmail());
+            return toResponse(profile);
+        } catch (RuntimeException exception) {
+            cleanupIdentityAfterRegistrationFailure(identityUserId, exception);
+            throw exception;
+        }
     }
 
     @Override
@@ -268,6 +273,16 @@ public class CustomerServiceImpl implements CustomerService {
                 Boolean.TRUE.equals(profile.getEnabled()),
                 Boolean.TRUE.equals(profile.getEmailVerified()),
                 profile.getUpdatedAt());
+    }
+
+    private void cleanupIdentityAfterRegistrationFailure(String identityUserId, RuntimeException registrationFailure) {
+        try {
+            identityAdminService.deleteCustomer(identityUserId);
+        } catch (RuntimeException cleanupFailure) {
+            registrationFailure.addSuppressed(cleanupFailure);
+            log.error("Failed to cleanup identity user after customer registration failure identityUserId={}",
+                    identityUserId, cleanupFailure);
+        }
     }
 
     private CustomerResponse toResponse(CustomerProfile profile) {

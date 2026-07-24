@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record IdentityAdminProperties(
         String serverUrl,
         String adminRealm,
-        String realm,
+        String targetRealm,
         String username,
         String password,
         String clientId,
